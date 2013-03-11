@@ -1,6 +1,5 @@
 from .actor import Actor
 from .decorators import slot
-from . import model as M
 
 __all__ = ('FunctionActor',)
 
@@ -20,7 +19,7 @@ class FunctionActor(Actor):
         '''Decorator to turn a function into an actor'''
         def decorator(func):
             class _(cls):
-                target=func
+                target=staticmethod(func)
                 name=actor_name
             _.__name__ = '%s(%s)' % (
                 cls.__name__, func.__name__)

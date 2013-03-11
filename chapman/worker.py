@@ -1,9 +1,12 @@
 __all__ = (
     'Worker',
     )
+import logging
 
 import model as M
 from .actor import Actor
+
+log = logging.getLogger()
 
 class Worker(object):
 
@@ -21,6 +24,7 @@ class Worker(object):
                     break
             ActorClass = Actor.by_name(doc.type)
             actor = ActorClass(doc)
+            log.info('Worker got actor %r', actor)
             yield actor
 
     def reserve_actor(self, actor_id):

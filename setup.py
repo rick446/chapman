@@ -17,6 +17,9 @@ setup(name='Chapman',
       packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
       include_package_data=True,
       zip_safe=False,
+      scripts=[
+        'scripts/chapmand',
+        ],
       install_requires=[
           # -*- Extra requirements: -*-
       ],
