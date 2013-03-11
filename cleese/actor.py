@@ -4,6 +4,7 @@ import sys
 from . import exc
 from . import meta
 from . import model as M
+from .context import g
 
 class Actor(object):
     __metaclass__ = meta.SlotsMetaclass
@@ -64,25 +65,27 @@ class Actor(object):
 
     def handle(self, raise_errors=False):
         msg = self._state.active_message()
-        self.current_message = msg
-        method = getattr(self, msg['slot'])
-        try:
-            result = method(*msg['args'], **msg['kwargs'])
-            if not isinstance(result, Result):
-                result = Result.success(self.id, result)
-        except exc.Chain, c:
-            M.ActorState.send(c.actor_id, c.cb_slot, (result,))
-        except:
-            if raise_errors:
-                raise
-            result = Result.failure(self.id,
-                                    'Error in %r' % self, *sys.exc_info())
-        self.update_data(result=result)
-        if msg['cb_id']:
-            M.ActorState.send(msg['cb_id'], msg['cb_slot'], (result,))
-        self.current_message = None
-        self._state.unlock()
-        return result
+        with g.set_context(self, msg):
+            method = getattr(self, msg['slot'])
+            try:
+                result = method(*msg['args'], **msg['kwargs'])
+                if not isinstance(result, Result):
+                    result = Result.success(self.id, result)
+            except exc.Chain, c:
+                M.ActorState.send(c.actor_id, c.slot, c.args, c.kwargs,
+                                  msg['cb_id'], msg['cb_slot'])
+                self._state.unlock()
+                return
+            except:
+                if raise_errors:
+                    raise
+                result = Result.failure(self.id,
+                                        'Error in %r' % self, *sys.exc_info())
+            self.update_data(result=result)
+            if msg['cb_id']:
+                M.ActorState.send(msg['cb_id'], msg['cb_slot'], (result,))
+            self._state.unlock()
+            return result
 
     def refresh(self):
         self._state = M.ActorState.m.get(_id=self.id)

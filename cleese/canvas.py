@@ -1,8 +1,9 @@
 from . import exc
 from . import actor
 from . import function
-from .decorators import slot
 from . import model as M
+from .decorators import slot
+from .context import g
 
 __all__ = ('Group','Pipeline')
 
@@ -17,9 +18,9 @@ class Group(function.FunctionActor):
         return obj
 
     def target(self, subids):
-        cb_id = self.current_message['cb_id']
-        cb_slot = self.current_message['cb_slot']
-        self.current_message.update(cb_id=None, cb_slot=None)
+        cb_id = g.message['cb_id']
+        cb_slot = g.message['cb_slot']
+        g.message.update(cb_id=None, cb_slot=None)
         self.update_data(
             subids=subids,
             results={},
@@ -46,7 +47,7 @@ class Group(function.FunctionActor):
         result = GroupResult(
             self.id, [ data['results'][subid] for subid in data['subids'] ])
         self.update_data(result=result)
-        self.current_message.update(cb_id=data['cb_id'], cb_slot=data['cb_slot'])
+        g.message.update(cb_id=data['cb_id'], cb_slot=data['cb_slot'])
         return result
 
 class Pipeline(function.FunctionActor):
@@ -60,9 +61,9 @@ class Pipeline(function.FunctionActor):
         return obj
         
     def target(self, subids):
-        cb_id = self.current_message['cb_id']
-        cb_slot = self.current_message['cb_slot']
-        self.current_message.update(cb_id=None, cb_slot=None)
+        cb_id = g.message['cb_id']
+        cb_slot = g.message['cb_slot']
+        g.message.update(cb_id=None, cb_slot=None)
         self.update_data(
             subids=subids,
             remaining=subids,
@@ -90,7 +91,7 @@ class Pipeline(function.FunctionActor):
     def retire_chain(self, result):
         data = self._state.data
         M.ActorState.m.remove({'_id': { '$in': data['subids'] } })
-        self.current_message.update(cb_id=data['cb_id'], cb_slot=data['cb_slot'])
+        g.message.update(cb_id=data['cb_id'], cb_slot=data['cb_slot'])
         return result
 
 class GroupResult(actor.Result):

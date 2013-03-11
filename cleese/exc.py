@@ -18,5 +18,8 @@ class ActorError(Exception):
 
 class Chain(Exception):
 
-    def __init__(self, actor_id, slot):
-        self.actor_id, self.slot = actor_id, slot
+    def __init__(self, actor_id, slot, *args, **kwargs):
+        self.actor_id = actor_id
+        self.slot = slot
+        self.args = args
+        self.kwargs = kwargs

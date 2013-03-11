@@ -5,7 +5,7 @@ import ming
 
 from cleese import Actor, FunctionActor, Worker
 from cleese import Group, Pipeline
-from cleese import exc
+from cleese import exc, g
 from cleese import model as M
 
 
@@ -75,10 +75,16 @@ class TestCanvas(unittest.TestCase):
         ming.mim.Connection.get().clear_all()
         self.worker = Worker('test')
         self.doubler = FunctionActor.decorate('double')(self._double)
+        self.fact = FunctionActor.decorate('fact')(self._fact)
         self.sum = FunctionActor.decorate('sum')(sum)
 
     def _double(self, x):
         return x * 2
+
+    def _fact(self, x, acc=1):
+        print '_fact(%s, %s)' % (x, acc)
+        if x == 0: return acc
+        raise exc.Chain(g.actor.id, 'run', x-1, acc*x)
 
     def test_group(self):
         subtasks = [ self.doubler.create((x,)) for x in range(5) ]
@@ -116,7 +122,9 @@ class TestCanvas(unittest.TestCase):
         a.forget()
         self.assertEqual(0, M.ActorState.m.find().count())
         
-        
-
-        
-
+    def test_chain(self):
+        a = self.fact.create(immutable=True)
+        a.start((4,))
+        self.worker.run_all()
+        a.refresh()
+        self.assertEqual(24, a.result.get())
