@@ -16,3 +16,7 @@ class ActorError(Exception):
         for line in self.args[2].splitlines():
             yield indent + line
 
+class Chain(Exception):
+
+    def __init__(self, actor_id, slot):
+        self.actor_id, self.slot = actor_id, slot

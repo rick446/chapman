@@ -19,6 +19,7 @@ class ActorState(Document):
     type=Field(str)                # name of Actor subclass
     _data=Field('data', S.Binary)  # actor-specific data
     queue=Field(str, if_missing='cleese') # actor queue name
+    immutable=Field(bool, if_missing=False) 
     mb=Field(
         [ { 'active': bool,
             'slot': str,
@@ -26,6 +27,13 @@ class ActorState(Document):
             'kwargs': S.Binary,
             'cb_id': S.ObjectId(if_missing=None),
             'cb_slot': str }  ])
+
+    @property
+    def data(self):
+        return loads(self._data)
+    @data.setter
+    def data(self, value):
+        self._data = bson.Binary(dumps(value))
 
     @classmethod
     def reserve(cls, worker, queue='cleese', actor_id=None):
@@ -79,7 +87,7 @@ class ActorState(Document):
         self.mb = [
             msg for msg in self.mb
             if not msg.active ]
-        self.m.update_partial(
+        ActorState.m.update_partial(
             { '_id': self._id },
             { '$set': { 'status': 'ready' },
               '$pull': { 'mb': { 'active': True } } } )
