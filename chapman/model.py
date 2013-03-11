@@ -6,11 +6,11 @@ from ming import Session, Field
 from ming import schema as S
 from ming.declarative import Document
 
-doc_session = Session.by_name('cleese')
+doc_session = Session.by_name('chapman')
 
 class ActorState(Document):
     class __mongometa__:
-        name='cleese.state'
+        name='chapman.state'
         session = doc_session
 
     _id=Field(S.ObjectId)
@@ -18,7 +18,7 @@ class ActorState(Document):
     worker=Field(str)              # worker currently reserving the actor
     type=Field(str)                # name of Actor subclass
     _data=Field('data', S.Binary)  # actor-specific data
-    queue=Field(str, if_missing='cleese') # actor queue name
+    queue=Field(str, if_missing='chapman') # actor queue name
     immutable=Field(bool, if_missing=False) 
     mb=Field(
         [ { 'active': bool,
@@ -36,7 +36,7 @@ class ActorState(Document):
         self._data = bson.Binary(dumps(value))
 
     @classmethod
-    def reserve(cls, worker, queue='cleese', actor_id=None):
+    def reserve(cls, worker, queue='chapman', actor_id=None):
         '''Reserve a ready actor with unprocessed messages and return
         its state'''
         if actor_id is None:

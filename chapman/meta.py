@@ -13,7 +13,7 @@ class SlotsMetaclass(RegistryMetaclass):
     def __new__(meta, name, bases, dct):
         slots = {}
         for k,v in dct.items():
-            s = getattr(v, '_cleese_slot', None)
+            s = getattr(v, '_chapman_slot', None)
             if s is None: continue
             slots[k] = s
         cls = RegistryMetaclass.__new__(meta, name, bases, dct)

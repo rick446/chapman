@@ -3,17 +3,17 @@ import unittest
 
 import ming
 
-from cleese import Actor, FunctionActor, Worker
-from cleese import Group, Pipeline
-from cleese import exc, g
-from cleese import model as M
+from chapman import Actor, FunctionActor, Worker
+from chapman import Group, Pipeline
+from chapman import exc, g
+from chapman import model as M
 
 
 class TestBasic(unittest.TestCase):
 
     def setUp(self):
         ming.config.configure_from_nested_dict(dict(
-                cleese=dict(uri='mim://')))
+                chapman=dict(uri='mim://')))
         ming.mim.Connection.get().clear_all()
         self.worker = Worker('test')
         self.doubler = FunctionActor.decorate('double')(self._double)
@@ -71,7 +71,7 @@ class TestCanvas(unittest.TestCase):
     
     def setUp(self):
         ming.config.configure_from_nested_dict(dict(
-                cleese=dict(uri='mim://')))
+                chapman=dict(uri='mim://')))
         ming.mim.Connection.get().clear_all()
         self.worker = Worker('test')
         self.doubler = FunctionActor.decorate('double')(self._double)

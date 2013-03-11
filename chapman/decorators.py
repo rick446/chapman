@@ -7,5 +7,5 @@ class slot(object):
             name = func.__name__
         else:
             name = self.name
-        func._cleese_slot = name
+        func._chapman_slot = name
         return func

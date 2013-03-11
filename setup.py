@@ -3,7 +3,7 @@ import sys, os
 
 version = '0.1'
 
-setup(name='Cleese',
+setup(name='Chapman',
       version=version,
       description="Actor-based job queue",
       long_description="""\
