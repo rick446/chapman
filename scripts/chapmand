@@ -6,12 +6,14 @@ Options:
   -h --help              show this help message and exit
   --name=NAME            set the name of the worker
   --queues=QUEUES        comma-separated list of queues [default: chapman]
+  --concurrency=THREADS  number of threads to run [default: 1]
 """
 
 import os
 import time
 import socket
 import logging
+import threading
 
 from docopt import docopt
 from pyramid.paster import bootstrap
@@ -28,8 +30,26 @@ def main(args):
         name = 'chapmand-%s-%s' % (
             socket.getfqdn(), os.getpid())
     log.info('Starting chapmand %s: listening on %s', name, queues)
-    w = worker.Worker(name)
-    w.serve_forever(queues)
+    if args['--concurrency'] == '1':
+        return thread(name, queues)
+    for x in range(int(args['--concurrency'])):
+        t = threading.Thread(target=thread, args=(name,queues))
+        t.setDaemon(True)
+        t.start()
+    while True:
+        time.sleep(30)
+        log.info('--- mark ---')
+    
+
+def thread(name, queues):
+    log.info('Starting worker thread')
+    while True:
+        try:
+            w = worker.Worker(name)
+            w.serve_forever(queues)
+        except:
+            log.exception('Unexpected error in worker, restarting in 5s')
+            time.sleep(5)
 
 if __name__ == '__main__':
     args = docopt(__doc__)

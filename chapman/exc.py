@@ -2,7 +2,9 @@ import traceback
 
 __all__ = ('ActorError',)
 
-class ActorError(Exception):
+class ChapmanError(Exception): pass
+
+class ActorError(ChapmanError):
     @classmethod
     def from_exc_info(cls, message, ex_type, ex_value, ex_tb):
         tb = traceback.format_exception(ex_type, ex_value, ex_tb)
@@ -16,10 +18,14 @@ class ActorError(Exception):
         for line in self.args[2].splitlines():
             yield indent + line
 
-class Chain(Exception):
+class Chain(ChapmanError):
 
     def __init__(self, actor_id, slot, *args, **kwargs):
         self.actor_id = actor_id
         self.slot = slot
         self.args = args
         self.kwargs = kwargs
+
+class Timeout(ChapmanError): pass
+
+class Suspend(ChapmanError): pass

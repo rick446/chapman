@@ -1,5 +1,6 @@
-P__all__ = ( 'Actor', 'Result' )
+__all__ = ( 'Actor', 'Result' )
 import sys
+import time
 
 from . import exc
 from . import meta
@@ -52,6 +53,24 @@ class Actor(object):
     def result(self):
         return self._state.data['result']
 
+    def wait(self, timeout=None):
+        start = time.time()
+        while True:
+            self.refresh()
+            if self._state.status == 'complete':
+                return self
+            now = time.time()
+            if timeout is not None:
+                if now-start > timeout:
+                    raise exc.Timeout()
+
+    def get(self, timeout=None, forget=True):
+        self.wait(timeout)
+        result = self.result
+        if forget:
+            self.forget()
+        return result.get()
+
     def start(self, args=None, kwargs=None, cb_id=None, cb_slot=None):
         self.send(self.id, 'run', args, kwargs, cb_id, cb_slot)
 
@@ -71,21 +90,29 @@ class Actor(object):
                 result = method(*msg['args'], **msg['kwargs'])
                 if not isinstance(result, Result):
                     result = Result.success(self.id, result)
+                self.update_data(result=result)
+                if msg['cb_id']:
+                    M.ActorState.send(
+                        msg['cb_id'], msg['cb_slot'], (result,))
+                self._state.unlock('complete')
+                return result
+            except exc.Suspend:
+                self._state.unlock('ready')
             except exc.Chain, c:
-                M.ActorState.send(c.actor_id, c.slot, c.args, c.kwargs,
-                                  msg['cb_id'], msg['cb_slot'])
-                self._state.unlock()
-                return
+                M.ActorState.send(
+                    c.actor_id, c.slot, c.args, c.kwargs,
+                    msg['cb_id'], msg['cb_slot'])
+                self._state.unlock('ready')
             except:
                 if raise_errors:
                     raise
-                result = Result.failure(self.id,
-                                        'Error in %r' % self, *sys.exc_info())
-            self.update_data(result=result)
-            if msg['cb_id']:
-                M.ActorState.send(msg['cb_id'], msg['cb_slot'], (result,))
-            self._state.unlock()
-            return result
+                result = Result.failure(
+                    self.id, 'Error in %r' % self, *sys.exc_info())
+                self.update_data(result=result)
+                if msg['cb_id']:
+                    M.ActorState.send(msg['cb_id'], msg['cb_slot'], (result,))
+                self._state.unlock('error')
+                return result
 
     def refresh(self):
         self._state = M.ActorState.m.get(_id=self.id)
@@ -99,7 +126,7 @@ class Actor(object):
             { '$set': { 'data': self._state._data } })
 
     def forget(self):
-        M.ActorState.m.remove({'_id': self.id})
+        self._state.m.delete()
 
 class Result(object):
 

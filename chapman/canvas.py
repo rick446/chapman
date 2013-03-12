@@ -30,6 +30,7 @@ class Group(function.FunctionActor):
         for subid in subids:
             actor.Actor.send(
                 subid, 'run', cb_id=self.id, cb_slot='retire_sub_actor')
+        raise exc.Suspend()
 
     @slot()
     def retire_sub_actor(self, result):
@@ -40,6 +41,7 @@ class Group(function.FunctionActor):
         self.update_data(results=results, waiting=waiting)
         if not waiting:
             return self.retire_group()
+        raise exc.Suspend()
 
     def retire_group(self):
         data = self._state.data
@@ -71,6 +73,7 @@ class Pipeline(function.FunctionActor):
             cb_slot=cb_slot)
         actor.Actor.send(
             subids[0], 'run', cb_id=self.id, cb_slot='retire_sub_actor')
+        raise exc.Suspend()
 
     @slot()
     def retire_sub_actor(self, result):
@@ -86,7 +89,7 @@ class Pipeline(function.FunctionActor):
         except exc.ActorError:
             return self.retire_chain(result)
         self.update_data(remaining=remaining[1:])
-        return None
+        raise exc.Suspend()
 
     def retire_chain(self, result):
         data = self._state.data

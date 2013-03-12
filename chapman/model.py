@@ -71,7 +71,7 @@ class ActorState(Document):
         session = doc_session
 
     _id=Field(S.ObjectId)
-    status=Field(str, if_missing='ready') # ready or busy
+    status=Field(str, if_missing='ready') # ready, busy, or complete
     worker=Field(str)              # worker currently reserving the actor
     type=Field(str)                # name of Actor subclass
     _data=Field('data', S.Binary)  # actor-specific data
@@ -112,6 +112,8 @@ class ActorState(Document):
                 'worker': worker,
                 'mb.$.active': True } }
         doc = cls.m.find_and_modify(query=spec, update=update, new=True)
+        if doc is not None:
+            Event.publish('reserve', doc._id)
         return doc
 
     @classmethod
@@ -141,14 +143,14 @@ class ActorState(Document):
             cb_id=msg.cb_id,
             cb_slot=msg.cb_slot)
 
-    def unlock(self):
-        self.status = 'ready'
+    def unlock(self, new_status):
+        self.status = new_status
         self.mb = [
             msg for msg in self.mb
             if not msg.active ]
         result = ActorState.m.update_partial(
             { '_id': self._id },
-            { '$set': { 'status': 'ready' },
+            { '$set': { 'status': new_status },
               '$pull': { 'mb': { 'active': True } } } )
-        Event.publish('unlock', self._id)
+        Event.publish('unlock', dict(s=new_status, id=self._id))
         return result

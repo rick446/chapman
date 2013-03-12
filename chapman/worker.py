@@ -38,6 +38,7 @@ class Worker(object):
     def run_all(self, queue='chapman', waitfunc=None):
         for actor in self.actor_iterator(queue, waitfunc):
             actor.handle()
+            M.doc_session.bind.bind.conn.end_request()
 
     def serve_forever(self, queues):
         waitfunc = lambda: M.Event.await(('send', 'unlock'), timeout=1)
