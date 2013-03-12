@@ -28,13 +28,9 @@ def main(args):
         name = 'chapmand-%s-%s' % (
             socket.getfqdn(), os.getpid())
     log.info('Starting chapmand %s: listening on %s', name, queues)
-    mainloop(name, queues)
-
-def mainloop(name, queues):
     w = worker.Worker(name)
-    while True:
-        w.run_all(queue={'$in': queues}, waitfunc=lambda:time.sleep(1))
-       
+    w.serve_forever(queues)
+
 if __name__ == '__main__':
     args = docopt(__doc__)
     bootstrap(args['<config>'])

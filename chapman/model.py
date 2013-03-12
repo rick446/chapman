@@ -1,4 +1,6 @@
+import time
 from cPickle import dumps, loads
+from datetime import datetime
 
 import bson
 
@@ -7,6 +9,61 @@ from ming import schema as S
 from ming.declarative import Document
 
 doc_session = Session.by_name('chapman')
+
+class Sequence(Document):
+    class __mongometa__:
+        name = 'chapman.sequence'
+        session = doc_session
+    _id=Field(str)
+    _next=Field('next', int)
+
+    @classmethod
+    def next(cls, name):
+        doc = cls.m.find_and_modify(
+            query={ '_id': name },
+            update={ '$inc': { 'next': 1 } },
+            upsert=True,
+            new=True)
+        return doc._next
+
+class Event(Document):
+    class __mongometa__:
+        name='chapman.event'
+        session = doc_session
+
+    _id=Field(int)
+    name=Field(str)
+    value=Field(None)
+    ts=Field(datetime, if_missing=datetime.utcnow)
+
+    @classmethod
+    def publish(cls, name, value):
+        doc = cls.make(dict(
+                _id=Sequence.next('event'),
+                name=name,
+                value=value))
+        doc.m.insert()
+        return doc
+
+    @classmethod
+    def await(cls, event_names, timeout=None):
+        doc = Sequence.m.get(_id='event')
+        if doc: last = doc._next
+        else: last = 0
+        start = time.time()
+        while True:
+            spec = { '_id': { '$gt': last } }
+            if event_names:
+                spec['name'] = { '$in': event_names }
+            q = cls.m.find(spec, tailable=True, await_data=True)
+            q = q.sort('$natural')
+            for ev in q:
+                return ev
+            elapsed = time.time() - start
+            if timeout is not None:
+                if elapsed > timeout:
+                    return None
+            time.sleep(0.1)
 
 class ActorState(Document):
     class __mongometa__:
@@ -68,8 +125,10 @@ class ActorState(Document):
             kwargs=bson.Binary(dumps(kwargs)),
             cb_id=cb_id,
             cb_slot=cb_slot)
-        return cls.m.update_partial(
+        result = cls.m.update_partial(
             {'_id': id}, { '$push': { 'mb': msg } } )
+        Event.publish('send', id)
+        return result
 
     def active_message(self):
         active_messages = [ msg for msg in self.mb if msg.active ]
@@ -87,7 +146,9 @@ class ActorState(Document):
         self.mb = [
             msg for msg in self.mb
             if not msg.active ]
-        ActorState.m.update_partial(
+        result = ActorState.m.update_partial(
             { '_id': self._id },
             { '$set': { 'status': 'ready' },
               '$pull': { 'mb': { 'active': True } } } )
+        Event.publish('unlock', self._id)
+        return result

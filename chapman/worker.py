@@ -38,3 +38,10 @@ class Worker(object):
     def run_all(self, queue='chapman', waitfunc=None):
         for actor in self.actor_iterator(queue, waitfunc):
             actor.handle()
+
+    def serve_forever(self, queues):
+        waitfunc = lambda: M.Event.await(('send', 'unlock'), timeout=1)
+        while True:
+            self.run_all(queue={'$in': queues}, waitfunc=waitfunc)
+       
+            

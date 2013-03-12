@@ -1,0 +1,52 @@
+#!/usr/bin/env python
+"""Usage:
+        chapmanev <config> [options]
+
+Options:
+  -h --help              show this help message and exit
+"""
+
+import os
+import time
+import logging
+from datetime import datetime
+
+from docopt import docopt
+from pyramid.paster import bootstrap
+
+from chapman import model as M
+
+log = None
+
+def main(args):
+    args = docopt(__doc__)
+    log.info('Starting chapmanev')
+    mainloop()
+
+def mainloop():
+    db = M.doc_session.db
+    evcoll = db.chapman.event
+    doc = db.chapman.sequence.find_one(dict(_id='event'))
+    if doc:
+        last = doc['next']
+    while True:
+        spec = { '_id': { '$gt': last } }
+        q = evcoll.find(spec, tailable=True, await_data=True)
+        q = q.sort('$natural')
+        for ev in q:
+            now = datetime.utcnow()
+            ts = ev.get('ts', now)
+            elapsed = now-ts
+            log.info('%s %r (latency %sms)', ev['name'], ev['value'],
+                     1000.0 * elapsed.total_seconds())
+            last = ev['_id']
+        time.sleep(0.1)
+       
+if __name__ == '__main__':
+    args = docopt(__doc__)
+    bootstrap(args['<config>'])
+    logging.config.fileConfig(
+        args['<config>'],
+        defaults=dict(here=os.getcwd()))
+    log = logging.getLogger('chapmanev')
+    main(args)

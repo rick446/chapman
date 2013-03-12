@@ -19,6 +19,8 @@ setup(name='Chapman',
       zip_safe=False,
       scripts=[
         'scripts/chapmand',
+        'scripts/chapmanev',
+        'scripts/chapman-init',
         ],
       install_requires=[
           # -*- Extra requirements: -*-
