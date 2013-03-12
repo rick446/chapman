@@ -40,8 +40,8 @@ class Worker(object):
             actor.handle()
             M.doc_session.bind.bind.conn.end_request()
 
-    def serve_forever(self, queues):
-        waitfunc = lambda: M.Event.await(('send', 'unlock'), timeout=1)
+    def serve_forever(self, queues, sleep=1):
+        waitfunc = lambda: M.Event.await(('send', 'unlock'), timeout=1, sleep=sleep)
         while True:
             self.run_all(queue={'$in': queues}, waitfunc=waitfunc)
        

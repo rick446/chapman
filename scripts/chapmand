@@ -7,6 +7,7 @@ Options:
   --name=NAME            set the name of the worker
   --queues=QUEUES        comma-separated list of queues [default: chapman]
   --concurrency=THREADS  number of threads to run [default: 1]
+  --sleep=SLEEP          seconds to sleep when there is no work [default: 1]
 """
 
 import os
@@ -26,14 +27,15 @@ def main(args):
     args = docopt(__doc__)
     name = args['--name']
     queues = args['--queues'].split(',')
+    sleep = int(args['--sleep'])
     if name is None:
         name = 'chapmand-%s-%s' % (
             socket.getfqdn(), os.getpid())
     log.info('Starting chapmand %s: listening on %s', name, queues)
     if args['--concurrency'] == '1':
-        return thread(name, queues)
+        return thread(name, queues, sleep)
     for x in range(int(args['--concurrency'])):
-        t = threading.Thread(target=thread, args=(name,queues))
+        t = threading.Thread(target=thread, args=(name,queues, sleep))
         t.setDaemon(True)
         t.start()
     while True:
@@ -41,12 +43,12 @@ def main(args):
         log.info('--- mark ---')
     
 
-def thread(name, queues):
+def thread(name, queues, sleep):
     log.info('Starting worker thread')
     while True:
         try:
             w = worker.Worker(name)
-            w.serve_forever(queues)
+            w.serve_forever(queues, sleep)
         except:
             log.exception('Unexpected error in worker, restarting in 5s')
             time.sleep(5)

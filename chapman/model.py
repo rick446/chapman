@@ -46,7 +46,7 @@ class Event(Document):
         return doc
 
     @classmethod
-    def await(cls, event_names, timeout=None):
+    def await(cls, event_names, timeout=None, sleep=1):
         doc = Sequence.m.get(_id='event')
         if doc: last = doc._next
         else: last = 0
@@ -63,7 +63,7 @@ class Event(Document):
             if timeout is not None:
                 if elapsed > timeout:
                     return None
-            time.sleep(0.1)
+            time.sleep(sleep)
 
 class ActorState(Document):
     class __mongometa__:

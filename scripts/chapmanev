@@ -40,7 +40,7 @@ def mainloop():
             log.info('%s %r (latency %sms)', ev['name'], ev['value'],
                      1000.0 * elapsed.total_seconds())
             last = ev['_id']
-        time.sleep(0.1)
+        time.sleep(1)
        
 if __name__ == '__main__':
     args = docopt(__doc__)
