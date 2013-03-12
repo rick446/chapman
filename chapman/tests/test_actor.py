@@ -58,7 +58,7 @@ class TestBasic(unittest.TestCase):
         a = self.doubler.create((4,))
         Actor.send(a.id, 'run')
         a.reserve('foo')
-        self.assertEqual(8, a.handle().get())
+        self.assertEqual(8, a.handle(raise_errors=True).get())
 
     def test_curry(self):
         a = self.doubler.create()
@@ -125,6 +125,27 @@ class TestCanvas(unittest.TestCase):
         self.worker.run_all()
         a.refresh()
         self.assertEqual(a.result.get(), [0, 2, 4, 6, 8 ])
+
+    def test_barrier(self):
+        events = []
+        @actor()
+        def subtask(x):
+            events.append(x)
+        @actor(immutable=True)
+        def tail(*args):
+            events.append(None)
+        t = tail.create()
+        a = Group.create(args=([],))
+        a.start(cb_id=t.id)
+        for x in range(5):
+            st = subtask.s(x)
+            a.append(st)
+        self.worker.run_all(raise_errors=True)
+        for event in events:
+            print event
+        self.assertEqual(6, len(events))
+        self.assertIsNone(events[-1])
+        self.assertEqual(set(events), set([0,1,2,3,4,None]))
 
     def test_pipeline(self):
         st0 = self.doubler.create((2,))

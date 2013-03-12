@@ -35,9 +35,9 @@ class Worker(object):
         actor = ActorClass(doc)
         return actor
 
-    def run_all(self, queue='chapman', waitfunc=None):
+    def run_all(self, queue='chapman', waitfunc=None, raise_errors=False):
         for actor in self.actor_iterator(queue, waitfunc):
-            actor.handle()
+            actor.handle(raise_errors)
             M.doc_session.bind.bind.conn.end_request()
 
     def serve_forever(self, queues, sleep=1):

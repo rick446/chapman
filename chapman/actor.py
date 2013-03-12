@@ -26,7 +26,7 @@ class Actor(object):
         all_options = dict(cls._options)
         all_options.update(options)
         state = M.ActorState.make(dict(type=cls.name, options=all_options))
-        state.data = dict(cargs=list(args), ckwargs=kwargs)
+        state.update_data(cargs=list(args), ckwargs=kwargs)
         state.m.insert()
         return cls(state)
 
@@ -62,7 +62,7 @@ class Actor(object):
 
     @property
     def result(self):
-        return self._state.data['result']
+        return self._state.get_data('result')
 
     def wait(self, timeout=None):
         start = time.time()
@@ -82,7 +82,7 @@ class Actor(object):
             self.forget()
         return result.get()
 
-    def start(self, args=None, kwargs=None, cb_id=None, cb_slot=None):
+    def start(self, args=None, kwargs=None, cb_id=None, cb_slot='run'):
         self.send(self.id, 'run', args, kwargs, cb_id, cb_slot)
 
     def reserve(self, worker):
@@ -133,12 +133,12 @@ class Actor(object):
         self._state = M.ActorState.m.get(_id=self.id)
 
     def update_data(self, **kwargs):
-        data = self._state.data
-        data.update(kwargs)
-        self._state.data = data
-        M.ActorState.m.update_partial(
-            { '_id': self.id },
-            { '$set': { 'data': self._state._data } })
+        '''Updates by setting pickled values'''
+        return self._state.update_data(**kwargs)
+
+    def update_data_raw(self, **kwargs):
+        '''Updates by setting unpickled values'''
+        return self._state.update_data_raw(**kwargs)
 
     def set_options(self, **kwargs):
         updates = dict(

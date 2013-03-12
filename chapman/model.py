@@ -74,7 +74,7 @@ class ActorState(Document):
     status=Field(str, if_missing='ready') # ready, busy, or complete
     worker=Field(str)              # worker currently reserving the actor
     type=Field(str)                # name of Actor subclass
-    _data=Field('data', S.Binary)  # actor-specific data
+    data=Field({str:None})         # actor-specific data
     options=Field(dict(
             queue=S.String(if_missing='chapman'),
             immutable=S.Bool(if_missing=False),
@@ -86,13 +86,6 @@ class ActorState(Document):
             'kwargs': S.Binary,
             'cb_id': S.ObjectId(if_missing=None),
             'cb_slot': str }  ])
-
-    @property
-    def data(self):
-        return loads(self._data)
-    @data.setter
-    def data(self, value):
-        self._data = bson.Binary(dumps(value))
 
     @classmethod
     def reserve(cls, worker, queue='chapman', actor_id=None):
@@ -156,3 +149,23 @@ class ActorState(Document):
               '$pull': { 'mb': { 'active': True } } } )
         Event.publish('unlock', dict(s=new_status, id=self._id))
         return result
+
+    def update_data(self, **kwargs):
+        '''Updates the data field with pickled values'''
+        pickled_kwargs = dict(
+            (k, bson.Binary(dumps(v)))
+            for k,v in kwargs.items() )
+        return self.update_data_raw(**pickled_kwargs)
+
+    def update_data_raw(self, **kwargs):
+        '''Updates the data field with raw values'''
+        updates = dict(
+            ('data.%s' % k, v) for k,v in kwargs.items())
+        self.data.update(kwargs)
+        return ActorState.m.update_partial(
+            { '_id': self._id },
+            { '$set': updates } )
+
+    def get_data(self, key):
+        '''Unpickles values from the data field'''
+        return loads(self.data[key])
