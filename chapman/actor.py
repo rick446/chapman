@@ -10,7 +10,7 @@ from .context import g
 class Actor(object):
     __metaclass__ = meta.SlotsMetaclass
     _registry = {}
-    ignore_result=False
+    _options = {}
 
     def __init__(self, state):
         self._state = state
@@ -19,15 +19,25 @@ class Actor(object):
         return '<%s %s>' % (self.__class__.__name__, self._state._id)
 
     @classmethod
-    def create(cls, args=None, kwargs=None, immutable=False):
+    def create(cls, args=None, kwargs=None, **options):
         '''Create an actor instance'''
         if args is None: args = ()
         if kwargs is None: kwargs = {}
-        state = M.ActorState.make(dict(type=cls.name,
-                                       immutable=immutable))
+        all_options = dict(cls._options)
+        all_options.update(options)
+        state = M.ActorState.make(dict(type=cls.name, options=all_options))
         state.data = dict(cargs=list(args), ckwargs=kwargs)
         state.m.insert()
         return cls(state)
+
+    @classmethod
+    def s(cls, *args, **kwargs):
+        return cls.create(args=args, kwargs=kwargs)
+
+
+    @classmethod
+    def si(cls, *args, **kwargs):
+        return cls.create(args=args, kwargs=kwargs, immutable=True)
 
     @classmethod
     def send(cls, id, slot, args=None, kwargs=None, cb_id=None, cb_slot=None):
@@ -96,7 +106,7 @@ class Actor(object):
                     M.ActorState.send(
                         msg['cb_id'], msg['cb_slot'], (result,))
                 self._state.unlock('complete')
-                if self.ignore_result:
+                if self._state.options.ignore_result:
                     self.forget()
                 else:
                     self._state.unlock('complete')
@@ -129,6 +139,15 @@ class Actor(object):
         M.ActorState.m.update_partial(
             { '_id': self.id },
             { '$set': { 'data': self._state._data } })
+
+    def set_options(self, **kwargs):
+        updates = dict(
+            ('options.%s' % k, v)
+            for k,v in kwargs.items())
+        self._state.options.update(kwargs)
+        M.ActorState.m.update_partial(
+            { '_id': self.id },
+            { '$set': updates })
 
     def forget(self):
         self._state.m.delete()

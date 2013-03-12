@@ -79,6 +79,19 @@ class TestBasic(unittest.TestCase):
         self.assertEqual([5], l)
         self.assertEqual(0, M.ActorState.m.find().count())
         
+    def test_ignore_later(self):
+        l = []
+        @actor()
+        def appender(x):
+            l.append(x)
+        a = appender.s(4)
+        a.set_options(ignore_result=True)
+        self.assertEqual(1, M.ActorState.m.find().count())
+        a.start()
+        self.worker.run_all()
+        self.assertEqual([4], l)
+        self.assertEqual(0, M.ActorState.m.find().count())
+        
         
 
 class TestCanvas(unittest.TestCase):

@@ -15,7 +15,7 @@ class FunctionActor(Actor):
         return self.target(*call_args, **call_kwargs)
 
     @classmethod
-    def decorate(cls, actor_name, ignore_result=False):
+    def decorate(cls, actor_name, **options):
         '''Decorator to turn a function into an actor'''
         def decorator(func):
             return type(
@@ -23,11 +23,11 @@ class FunctionActor(Actor):
                 (cls,),
                 { 'target': staticmethod(func),
                   'name': actor_name,
-                  'ignore_result': ignore_result })
+                  '_options': dict(options) })
         return decorator
 
     def curry(self, *args, **kwargs):
-        if self._state.immutable: return self
+        if self._state.options.immutable: return self
         data = self._state.data
         cargs = data['cargs'] + list(args)
         ckwargs = dict(data['ckwargs'])

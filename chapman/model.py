@@ -75,8 +75,10 @@ class ActorState(Document):
     worker=Field(str)              # worker currently reserving the actor
     type=Field(str)                # name of Actor subclass
     _data=Field('data', S.Binary)  # actor-specific data
-    queue=Field(str, if_missing='chapman') # actor queue name
-    immutable=Field(bool, if_missing=False) 
+    options=Field(dict(
+            queue=S.String(if_missing='chapman'),
+            immutable=S.Bool(if_missing=False),
+            ignore_result=S.Bool(if_missing=False)))
     mb=Field(
         [ { 'active': bool,
             'slot': str,
@@ -99,7 +101,7 @@ class ActorState(Document):
         if actor_id is None:
             spec = {
                 'status': 'ready',
-                'queue': queue,
+                'options.queue': queue,
                 'mb.active': False }
         else:
             spec = {

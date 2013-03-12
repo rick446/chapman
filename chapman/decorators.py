@@ -10,8 +10,8 @@ class slot(object):
         func._chapman_slot = name
         return func
 
-def actor(name=None, ignore_result=False):
+def actor(name=None, **options):
     from chapman.function import FunctionActor
     def decorator(func):
-        return FunctionActor.decorate(name, ignore_result)(func)
+        return FunctionActor.decorate(name, **options)(func)
     return decorator
