@@ -15,15 +15,15 @@ class FunctionActor(Actor):
         return self.target(*call_args, **call_kwargs)
 
     @classmethod
-    def decorate(cls, actor_name):
+    def decorate(cls, actor_name, ignore_result=False):
         '''Decorator to turn a function into an actor'''
         def decorator(func):
-            class _(cls):
-                target=staticmethod(func)
-                name=actor_name
-            _.__name__ = '%s(%s)' % (
-                cls.__name__, func.__name__)
-            return _
+            return type(
+                '%s(%s)' % (cls.__name__, func.__name__),
+                (cls,),
+                { 'target': staticmethod(func),
+                  'name': actor_name,
+                  'ignore_result': ignore_result })
         return decorator
 
     def curry(self, *args, **kwargs):

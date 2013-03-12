@@ -10,6 +10,7 @@ from .context import g
 class Actor(object):
     __metaclass__ = meta.SlotsMetaclass
     _registry = {}
+    ignore_result=False
 
     def __init__(self, state):
         self._state = state
@@ -95,6 +96,10 @@ class Actor(object):
                     M.ActorState.send(
                         msg['cb_id'], msg['cb_slot'], (result,))
                 self._state.unlock('complete')
+                if self.ignore_result:
+                    self.forget()
+                else:
+                    self._state.unlock('complete')
                 return result
             except exc.Suspend:
                 self._state.unlock('ready')

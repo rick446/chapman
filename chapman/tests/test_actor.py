@@ -5,7 +5,7 @@ import ming
 
 from chapman import Actor, FunctionActor, Worker
 from chapman import Group, Pipeline
-from chapman import exc, g
+from chapman import exc, g, actor
 from chapman import model as M
 
 
@@ -66,6 +66,20 @@ class TestBasic(unittest.TestCase):
         Actor.send(a.id, 'run')
         a.reserve('foo')
         self.assertEqual(8, a.handle(raise_errors=True).get())
+
+    def test_ignore(self):
+        l = []
+        @actor(ignore_result=True)
+        def appender(x):
+            l.append(x)
+        a = appender.create()
+        self.assertEqual(1, M.ActorState.m.find().count())
+        a.start((5,))
+        self.worker.run_all()
+        self.assertEqual([5], l)
+        self.assertEqual(0, M.ActorState.m.find().count())
+        
+        
 
 class TestCanvas(unittest.TestCase):
     
