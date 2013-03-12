@@ -103,6 +103,7 @@ class TestCanvas(unittest.TestCase):
         self.worker = Worker('test')
         self.doubler = FunctionActor.decorate('double')(self._double)
         self.fact = FunctionActor.decorate('fact')(self._fact)
+        self.fact2 = FunctionActor.decorate('fact2')(self._fact2)
         self.sum = FunctionActor.decorate('sum')(sum)
 
     def _double(self, x):
@@ -112,6 +113,11 @@ class TestCanvas(unittest.TestCase):
         print '_fact(%s, %s)' % (x, acc)
         if x == 0: return acc
         raise exc.Chain(g.actor.id, 'run', x-1, acc*x)
+
+    def _fact2(self, x, acc=1):
+        print '_fact2(%s, %s)' % (x, acc)
+        if x == 0: return acc
+        g.actor.chain(x-1, acc*x)
 
     def test_group(self):
         subtasks = [ self.doubler.create((x,)) for x in range(5) ]
@@ -155,3 +161,11 @@ class TestCanvas(unittest.TestCase):
         self.worker.run_all()
         a.refresh()
         self.assertEqual(24, a.result.get())
+
+    def test_chain2(self):
+        a = self.fact2.si()
+        a.start((4,))
+        self.worker.run_all()
+        a.refresh()
+        self.assertEqual(24, a.result.get())
+        

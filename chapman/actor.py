@@ -152,6 +152,9 @@ class Actor(object):
     def forget(self):
         self._state.m.delete()
 
+    def chain(self, *args, **kwargs):
+        raise exc.Chain(self.id, 'run', *args, **kwargs)
+
 class Result(object):
 
     def __init__(self, actor_id, status, data):
