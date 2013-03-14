@@ -112,12 +112,12 @@ class TestCanvas(unittest.TestCase):
     def _fact(self, x, acc=1):
         print '_fact(%s, %s)' % (x, acc)
         if x == 0: return acc
-        g.actor.chain(g.actor.id, 'run', x-1, acc*x)
+        g.actor.chain('run', x-1, acc*x)
 
     def _fact2(self, x, acc=1):
         print '_fact2(%s, %s)' % (x, acc)
         if x == 0: return acc
-        g.actor.chain(g.actor.id, 'run', x-1, acc*x)
+        g.actor.chain('run', x-1, acc*x)
 
     def test_group(self):
         subtasks = [ self.doubler.create((x,)) for x in range(5) ]

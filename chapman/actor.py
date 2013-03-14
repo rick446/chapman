@@ -162,16 +162,16 @@ class Actor(object):
     def forget(self):
         self._state.m.delete()
 
-    def chain(self, actor_id, slot, *args, **kwargs):
+    def chain(self, slot, *args, **kwargs):
         M.ActorState.m.update_partial(
             { '_id': self.id },
             { '$push': {
-                    'data.chain.%s' % actor_id: dict(
+                    'data.chain.%s' % self.id: dict(
                         cb_id=g.message['cb_id'],
                         cb_slot=g.message['cb_slot']) } } )
         M.ActorState.send(
-            actor_id, slot, args, kwargs,
-            self.id, 'trampoline_chain_result')
+            self.id, slot, args, kwargs,
+            g.actor.id, 'trampoline_chain_result')
         g.message['cb_id'] = g.message['cb_slot'] = None
         raise exc.Suspend('ready')
 
