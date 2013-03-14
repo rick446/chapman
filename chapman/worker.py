@@ -6,7 +6,7 @@ import logging
 import model as M
 from .actor import Actor
 
-log = logging.getLogger()
+log = logging.getLogger(__name__)
 
 class Worker(object):
 
@@ -24,7 +24,8 @@ class Worker(object):
                     break
             ActorClass = Actor.by_name(doc.type)
             actor = ActorClass(doc)
-            log.info('Worker got actor %r', actor)
+            msg = doc.active_message()
+            log.info('Worker got actor %r %s', actor, msg['slot'])
             yield actor
 
     def reserve_actor(self, actor_id):
@@ -40,9 +41,9 @@ class Worker(object):
             actor.handle(raise_errors)
             M.doc_session.bind.bind.conn.end_request()
 
-    def serve_forever(self, queues, sleep=1):
+    def serve_forever(self, queues, sleep=1, raise_errors=False):
         waitfunc = lambda: M.Event.await(('send', 'unlock'), timeout=1, sleep=sleep)
         while True:
-            self.run_all(queue={'$in': queues}, waitfunc=waitfunc)
+            self.run_all(queue={'$in': queues}, waitfunc=waitfunc, raise_errors=raise_errors)
        
             

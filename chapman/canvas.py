@@ -1,5 +1,7 @@
+import logging
 from cPickle import dumps, loads
 
+import sys
 import bson
 
 from . import exc
@@ -10,8 +12,14 @@ from .decorators import slot
 from .context import g
 
 __all__ = ('Group','Pipeline')
+log = logging.getLogger(__name__)
 
 class Group(function.FunctionActor):
+
+    def __repr__(self):
+        return '<Group %s %r>' % (
+            self.id,
+            self._state.data.get('subids', None))
 
     @classmethod
     def create(cls, args=None, kwargs=None, **options):
@@ -34,6 +42,7 @@ class Group(function.FunctionActor):
         return obj
 
     def target(self, subids):
+        log.info('Start group %r', subids)
         cb_id = g.message['cb_id']
         cb_slot = g.message['cb_slot']
         g.message.update(cb_id=None, cb_slot=None)
@@ -46,6 +55,11 @@ class Group(function.FunctionActor):
         for subid in subids:
             actor.Actor.send(
                 subid, 'run', cb_id=self.id, cb_slot='retire_sub_actor')
+        self.refresh()
+        print 'Started group %s with subids: %r' % (
+            self.id, self._state.data.subids)
+        if not self._state.data.waiting:
+            return self.retire_group()
         raise exc.Suspend()
 
     def append(self, sub):
@@ -60,6 +74,8 @@ class Group(function.FunctionActor):
 
     @slot()
     def retire_sub_actor(self, result):
+        print 'Retiring sub_actor %s, result is %r' % (
+            result.actor_id, result.get())
         data = self._state.data
         results = data['results']
         waiting = data['waiting']
@@ -78,6 +94,7 @@ class Group(function.FunctionActor):
         data = self._state.data
         M.ActorState.m.remove({'_id': { '$in': data['subids'] } })
         results = data['results']
+        print 'Retire group, results is', results, data['subids']
         result = GroupResult(
             self.id, [ loads(results[str(subid)]) for subid in data['subids'] ])
         self.update_data(result=result)
@@ -85,6 +102,11 @@ class Group(function.FunctionActor):
         return result
 
 class Pipeline(function.FunctionActor):
+
+    def __repr__(self):
+        return '<Pipeline %s %r>' % (
+            self.id,
+            self._state.data.get('subids', None))
 
     @classmethod
     def spawn(cls, sub_actors):
@@ -95,14 +117,16 @@ class Pipeline(function.FunctionActor):
         return obj
         
     def target(self, subids):
+        log.info('Start pipeline %r', subids)
         cb_id = g.message['cb_id']
         cb_slot = g.message['cb_slot']
         g.message.update(cb_id=None, cb_slot=None)
-        self.update_data(
-            subids=subids,
-            remaining=subids,
-            cb_id=cb_id,
-            cb_slot=cb_slot)
+        M.ActorState.m.update_partial(
+            { '_id': self.id },
+            { '$pushAll': { 'data.subids': subids,
+                            'data.remaining': subids },
+              '$set': { 'data.cb_id': cb_id,
+                        'data.cb_slot': cb_slot } })
         actor.Actor.send(
             subids[0], 'run', cb_id=self.id, cb_slot='retire_sub_actor')
         raise exc.Suspend()
@@ -113,17 +137,22 @@ class Pipeline(function.FunctionActor):
         remaining = data['remaining']
         assert remaining[0] == result.actor_id
         if len(remaining) == 1:
-            return self.retire_chain(result)
+            return self.retire_pipeline(result)
         try:
             next_actor = actor.Actor.by_id(remaining[1])
             next_actor.curry(result.get())
             next_actor.start(cb_id=self.id, cb_slot='retire_sub_actor')
         except exc.ActorError:
-            return self.retire_chain(result)
-        self.update_data(remaining=remaining[1:])
+            result = actor.Result.failure(
+                self.id, 'Pipeline error',
+                *sys.exc_info())
+            return self.retire_pipeline(result)
+        M.ActorState.m.update_partial(
+            { '_id': self.id },
+            { '$pull': { 'data.remaining': result.actor_id } })
         raise exc.Suspend()
 
-    def retire_chain(self, result):
+    def retire_pipeline(self, result):
         data = self._state.data
         M.ActorState.m.remove({'_id': { '$in': data['subids'] } })
         g.message.update(cb_id=data['cb_id'], cb_slot=data['cb_slot'])

@@ -32,14 +32,16 @@ class Event(Document):
         session = doc_session
 
     _id=Field(int)
+    actor_id=Field(S.ObjectId, if_missing=None)
     name=Field(str)
     value=Field(None)
     ts=Field(datetime, if_missing=datetime.utcnow)
 
     @classmethod
-    def publish(cls, name, value):
+    def publish(cls, name, actor_id, value=None):
         doc = cls.make(dict(
                 _id=Sequence.next('event'),
+                actor_id=actor_id,
                 name=name,
                 value=value))
         doc.m.insert()
@@ -88,6 +90,12 @@ class ActorState(Document):
             'cb_slot': str }  ])
 
     @classmethod
+    def ls(cls):
+        for obj in cls.m.find():
+            print '%s: %s %s @%s' % (
+                obj._id, obj.status, obj.type, obj.worker)
+
+    @classmethod
     def reserve(cls, worker, queue='chapman', actor_id=None):
         '''Reserve a ready actor with unprocessed messages and return
         its state'''
@@ -108,7 +116,7 @@ class ActorState(Document):
                 'mb.$.active': True } }
         doc = cls.m.find_and_modify(query=spec, update=update, new=True)
         if doc is not None:
-            Event.publish('reserve', doc._id)
+            Event.publish('reserve', doc._id, doc.active_message_raw())
         return doc
 
     @classmethod
@@ -124,13 +132,16 @@ class ActorState(Document):
             cb_slot=cb_slot)
         result = cls.m.update_partial(
             {'_id': id}, { '$push': { 'mb': msg } } )
-        Event.publish('send', id)
+        Event.publish('send', id, msg)
         return result
 
-    def active_message(self):
+    def active_message_raw(self):
         active_messages = [ msg for msg in self.mb if msg.active ]
         assert len(active_messages) == 1, active_messages
-        msg = active_messages[0]
+        return active_messages[0]
+
+    def active_message(self):
+        msg = self.active_message_raw()
         return dict(
             slot=msg.slot,
             args=loads(msg.args),
@@ -147,7 +158,7 @@ class ActorState(Document):
             { '_id': self._id },
             { '$set': { 'status': new_status },
               '$pull': { 'mb': { 'active': True } } } )
-        Event.publish('unlock', dict(s=new_status, id=self._id))
+        Event.publish('unlock', self._id, dict(s=new_status))
         return result
 
     def update_data(self, **kwargs):

@@ -9,12 +9,14 @@ Options:
 import os
 import time
 import logging
+from cPickle import loads
 from datetime import datetime
 
 from docopt import docopt
 from pyramid.paster import bootstrap
 
 from chapman import model as M
+from chapman import Actor
 
 log = None
 
@@ -37,8 +39,22 @@ def mainloop():
             now = datetime.utcnow()
             ts = ev.get('ts', now)
             elapsed = now-ts
-            log.info('%s %r (latency %sms)', ev['name'], ev['value'],
+            a = Actor.by_id(ev['actor_id'])
+            if a:
+                sactor = repr(a)
+            else:
+                sactor = '<Unknown Actor %s>' % ev['actor_id']
+            log.info('%s %s (latency %sms)', ev['name'], sactor,
                      1000.0 * elapsed.total_seconds())
+            if ev['name'] == 'send':
+                log.info('... %s(*%r, **%r)',
+                         ev['value']['slot'],
+                         loads(ev['value']['args']),
+                         loads(ev['value']['kwargs']))
+            elif ev['name'] == 'unlock':
+                log.info('... new status is %s', ev['value']['s'])
+            elif ev['name'] == 'reserve':
+                log.info('... %r', ev['value'])
             last = ev['_id']
         time.sleep(1)
        

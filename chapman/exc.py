@@ -14,6 +14,16 @@ class ActorError(ChapmanError):
         self = cls(ex_type, ex_value, tb_arg)
         return self
 
+    def __repr__(self):
+        lines = [ '<ActorError>, original exception follows:' ]
+        try:
+            lines += list(self.format())
+        except:
+            lines.append('... could not print original exception')
+        return '\n'.join(lines)
+
+    __str__ = __repr__
+
     def format(self, indent=''):
         for line in self.args[2].splitlines():
             yield indent + line
@@ -28,4 +38,8 @@ class Chain(ChapmanError):
 
 class Timeout(ChapmanError): pass
 
-class Suspend(ChapmanError): pass
+class Suspend(ChapmanError):
+
+    def __init__(self, status='ready'):
+        super(Suspend, self).__init__()
+        self.status = status

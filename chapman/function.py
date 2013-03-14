@@ -1,7 +1,11 @@
+import logging
+
 from .actor import Actor
 from .decorators import slot
 
 __all__ = ('FunctionActor',)
+
+log = logging.getLogger()
 
 class FunctionActor(Actor):
     target=None
@@ -12,6 +16,7 @@ class FunctionActor(Actor):
         call_args = data('cargs') + list(args)
         call_kwargs = dict(data('ckwargs'))
         call_kwargs.update(kwargs)
+        log.info('run %r (*%r, **%r)', self, call_args, call_kwargs)
         return self.target(*call_args, **call_kwargs)
 
     @classmethod

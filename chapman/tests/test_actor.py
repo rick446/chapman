@@ -112,12 +112,12 @@ class TestCanvas(unittest.TestCase):
     def _fact(self, x, acc=1):
         print '_fact(%s, %s)' % (x, acc)
         if x == 0: return acc
-        raise exc.Chain(g.actor.id, 'run', x-1, acc*x)
+        g.actor.chain(g.actor.id, 'run', x-1, acc*x)
 
     def _fact2(self, x, acc=1):
         print '_fact2(%s, %s)' % (x, acc)
         if x == 0: return acc
-        g.actor.chain(x-1, acc*x)
+        g.actor.chain(g.actor.id, 'run', x-1, acc*x)
 
     def test_group(self):
         subtasks = [ self.doubler.create((x,)) for x in range(5) ]
@@ -151,7 +151,7 @@ class TestCanvas(unittest.TestCase):
         st0 = self.doubler.create((2,))
         st1 = self.doubler.create()
         a = Pipeline.spawn([st0, st1])
-        self.worker.run_all()
+        self.worker.run_all(raise_errors=True)
         a.refresh()
         self.assertEqual(a.result.get(), 8)
 
@@ -159,7 +159,7 @@ class TestCanvas(unittest.TestCase):
         st0 = self.doubler.create((2,))
         st1 = self.doubler.create((2,), immutable=True)
         a = Pipeline.spawn([st0, st1])
-        self.worker.run_all()
+        self.worker.run_all(raise_errors=True)
         a.refresh()
         self.assertEqual(a.result.get(), 4)
 
@@ -169,7 +169,7 @@ class TestCanvas(unittest.TestCase):
         a1 = self.sum.create()
         a = Pipeline.spawn([a0, a1])
         self.assertEqual(8, M.ActorState.m.find().count())
-        self.worker.run_all()
+        self.worker.run_all(raise_errors=True)
         a.refresh()
         self.assertEqual(20, a.result.get())
         self.assertEqual(1, M.ActorState.m.find().count())
@@ -179,14 +179,14 @@ class TestCanvas(unittest.TestCase):
     def test_chain(self):
         a = self.fact.create(immutable=True)
         a.start((4,))
-        self.worker.run_all()
+        self.worker.run_all(raise_errors=True)
         a.refresh()
         self.assertEqual(24, a.result.get())
 
     def test_chain2(self):
         a = self.fact2.si()
         a.start((4,))
-        self.worker.run_all()
+        self.worker.run_all(raise_errors=True)
         a.refresh()
         self.assertEqual(24, a.result.get())
         

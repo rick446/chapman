@@ -1,11 +1,15 @@
 __all__ = ( 'Actor', 'Result' )
 import sys
 import time
+import logging
 
 from . import exc
 from . import meta
 from . import model as M
 from .context import g
+from .decorators import slot
+
+log = logging.getLogger(__name__)
 
 class Actor(object):
     __metaclass__ = meta.SlotsMetaclass
@@ -17,6 +21,18 @@ class Actor(object):
 
     def __repr__(self):
         return '<%s %s>' % (self.__class__.__name__, self._state._id)
+
+    @slot()
+    def trampoline_chain_result(self, result):
+        'trampoline the result up the callback chain'
+        chain_data = self._state.data['chain'][result.actor_id][0]
+        M.ActorState.m.update_partial(
+            { '_id': self.id },
+            { '$pop': { 'data.chain.%s' % result.actor_id: -1 } } )
+        log.info('Trampoline %r to %r', result, chain_data)
+        g.message.update(**chain_data)
+        result.actor_id = self.id
+        return result
 
     @classmethod
     def create(cls, args=None, kwargs=None, **options):
@@ -105,19 +121,13 @@ class Actor(object):
                 if msg['cb_id']:
                     M.ActorState.send(
                         msg['cb_id'], msg['cb_slot'], (result,))
-                self._state.unlock('complete')
                 if self._state.options.ignore_result:
                     self.forget()
                 else:
                     self._state.unlock('complete')
                 return result
-            except exc.Suspend:
-                self._state.unlock('ready')
-            except exc.Chain, c:
-                M.ActorState.send(
-                    c.actor_id, c.slot, c.args, c.kwargs,
-                    msg['cb_id'], msg['cb_slot'])
-                self._state.unlock('ready')
+            except exc.Suspend, s:
+                self._state.unlock(s.status)
             except:
                 if raise_errors:
                     raise
@@ -152,8 +162,18 @@ class Actor(object):
     def forget(self):
         self._state.m.delete()
 
-    def chain(self, *args, **kwargs):
-        raise exc.Chain(self.id, 'run', *args, **kwargs)
+    def chain(self, actor_id, slot, *args, **kwargs):
+        M.ActorState.m.update_partial(
+            { '_id': self.id },
+            { '$push': {
+                    'data.chain.%s' % actor_id: dict(
+                        cb_id=g.message['cb_id'],
+                        cb_slot=g.message['cb_slot']) } } )
+        M.ActorState.send(
+            actor_id, slot, args, kwargs,
+            self.id, 'trampoline_chain_result')
+        g.message['cb_id'] = g.message['cb_slot'] = None
+        raise exc.Suspend('ready')
 
 class Result(object):
 
