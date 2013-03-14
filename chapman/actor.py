@@ -25,7 +25,10 @@ class Actor(object):
     @slot()
     def trampoline_chain_result(self, result):
         'trampoline the result up the callback chain'
-        chain_data = self._state.data['chain'][result.actor_id][0]
+        if str(result.actor_id) not in self._state.data['chain']:
+            print self._state.data['chain']
+            import ipdb; ipdb.set_trace()
+        chain_data = self._state.data['chain'][str(result.actor_id)][0]
         M.ActorState.m.update_partial(
             { '_id': self.id },
             { '$pop': { 'data.chain.%s' % result.actor_id: -1 } } )
@@ -69,6 +72,7 @@ class Actor(object):
     @classmethod
     def by_id(cls, id):
         state = M.ActorState.m.get(_id=id)
+        if state is None: return None
         ActorClass = cls.by_name(state.type)
         return ActorClass(state)
 
@@ -122,6 +126,7 @@ class Actor(object):
                     M.ActorState.send(
                         msg['cb_id'], msg['cb_slot'], (result,))
                 if self._state.options.ignore_result:
+                    log.info('Forget all about %r', self)
                     self.forget()
                 else:
                     self._state.unlock('complete')
@@ -163,15 +168,19 @@ class Actor(object):
         self._state.m.delete()
 
     def chain(self, slot, *args, **kwargs):
+        # Update the current actor's 'data.chain.OBJECTID' field
         M.ActorState.m.update_partial(
-            { '_id': self.id },
+            { '_id': g.actor.id },
             { '$push': {
                     'data.chain.%s' % self.id: dict(
                         cb_id=g.message['cb_id'],
                         cb_slot=g.message['cb_slot']) } } )
+        # Send a message to the next actor in the chain, telling *it* to call
+        # back to the current trampoline_chain_result slot
         M.ActorState.send(
             self.id, slot, args, kwargs,
             g.actor.id, 'trampoline_chain_result')
+        # Disable callback on this message (it will be handled in trampoline_chain_result
         g.message['cb_id'] = g.message['cb_slot'] = None
         raise exc.Suspend('ready')
 
