@@ -151,10 +151,14 @@ class ActorState(Document):
     def retire(self, result):
         cur = self
         ids = [cur._id]
+        to_remove = []
         while cur.parent_id is not None:
+            to_remove.append(cur._id)
             cur = ActorState.m.get(_id=cur.parent_id)
             ids.append(cur._id)
         result.actor_id = cur._id
+        if to_remove:
+            ActorState.m.remove({'_id': {'$in': to_remove } })
         ActorState.m.update_partial(
             { '_id': { '$in': ids } },
             { '$set': {
