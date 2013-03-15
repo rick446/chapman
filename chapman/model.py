@@ -73,10 +73,14 @@ class ActorState(Document):
         session = doc_session
 
     _id=Field(S.ObjectId)
+    parent_id = Field(S.ObjectId, if_missing=None)
     status=Field(str, if_missing='ready') # ready, busy, or complete
     worker=Field(str)              # worker currently reserving the actor
     type=Field(str)                # name of Actor subclass
     data=Field({str:None})         # actor-specific data
+    cb_id=Field(S.ObjectId, if_missing=None)
+    cb_slot=Field(str)
+    _result=Field('result', S.Binary)
     options=Field(dict(
             queue=S.String(if_missing='chapman'),
             immutable=S.Bool(if_missing=False),
@@ -101,7 +105,7 @@ class ActorState(Document):
         its state'''
         if actor_id is None:
             spec = {
-                'status': 'ready',
+                'status': { '$in': [ 'ready', 'complete' ] },
                 'options.queue': queue,
                 'mb.active': False }
         else:
@@ -135,6 +139,33 @@ class ActorState(Document):
         Event.publish('send', id, msg)
         return result
 
+    @property
+    def result(self):
+        if self._result is None: return None
+        return loads(self._result)
+    @result.setter
+    def result(self, value):
+        presult = bson.Binary(dumps(value))
+        self._result = presult
+
+    def retire(self, result):
+        cur = self
+        ids = [cur._id]
+        while cur.parent_id is not None:
+            cur = ActorState.m.get(_id=cur.parent_id)
+            ids.append(cur._id)
+        result.actor_id = cur._id
+        ActorState.m.update_partial(
+            { '_id': { '$in': ids } },
+            { '$set': {
+                    'result': bson.Binary(dumps(result)),
+                    'status': 'complete' },
+              '$pull': { 'mb': { 'active': True } } },
+            multi=True)
+        Event.publish('retire', self._id, ids)
+        self.result = result
+        return result
+
     def active_message_raw(self):
         active_messages = [ msg for msg in self.mb if msg.active ]
         assert len(active_messages) == 1, active_messages
@@ -150,16 +181,16 @@ class ActorState(Document):
             cb_slot=msg.cb_slot)
 
     def unlock(self, new_status):
+        '''Change the status and remove any active messages from the mailbox'''
         self.status = new_status
         self.mb = [
             msg for msg in self.mb
             if not msg.active ]
-        result = ActorState.m.update_partial(
+        ActorState.m.update_partial(
             { '_id': self._id },
             { '$set': { 'status': new_status },
               '$pull': { 'mb': { 'active': True } } } )
         Event.publish('unlock', self._id, dict(s=new_status))
-        return result
 
     def update_data(self, **kwargs):
         '''Updates the data field with pickled values'''
@@ -180,3 +211,18 @@ class ActorState(Document):
     def get_data(self, key):
         '''Unpickles values from the data field'''
         return loads(self.data[key])
+
+    @classmethod
+    def chain(cls, message, parent_id, child_id, slot, *args, **kwargs):
+        msg = dict(
+            active=False,
+            slot=slot,
+            args=bson.Binary(dumps(args)),
+            kwargs=bson.Binary(dumps(kwargs)),
+            cb_id=message['cb_id'],
+            cb_slot=message['cb_slot'])
+        ActorState.m.update_partial(
+            { '_id': child_id },
+            { '$push': { 'mb': msg },
+              '$set': { 'parent_id': parent_id } })
+        message['cb_id'] = message['cb_slot'] = None

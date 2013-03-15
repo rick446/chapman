@@ -7,7 +7,6 @@ from . import exc
 from . import meta
 from . import model as M
 from .context import g
-from .decorators import slot
 
 log = logging.getLogger(__name__)
 
@@ -21,21 +20,6 @@ class Actor(object):
 
     def __repr__(self):
         return '<%s %s>' % (self.__class__.__name__, self._state._id)
-
-    @slot()
-    def trampoline_chain_result(self, result):
-        'trampoline the result up the callback chain'
-        if str(result.actor_id) not in self._state.data['chain']:
-            print self._state.data['chain']
-            import ipdb; ipdb.set_trace()
-        chain_data = self._state.data['chain'][str(result.actor_id)][0]
-        M.ActorState.m.update_partial(
-            { '_id': self.id },
-            { '$pop': { 'data.chain.%s' % result.actor_id: -1 } } )
-        log.info('Trampoline %r to %r', result, chain_data)
-        g.message.update(**chain_data)
-        result.actor_id = self.id
-        return result
 
     @classmethod
     def create(cls, args=None, kwargs=None, **options):
@@ -82,7 +66,7 @@ class Actor(object):
 
     @property
     def result(self):
-        return self._state.get_data('result')
+        return self._state.result
 
     def wait(self, timeout=None):
         start = time.time()
@@ -119,17 +103,7 @@ class Actor(object):
             method = getattr(self, msg['slot'])
             try:
                 result = method(*msg['args'], **msg['kwargs'])
-                if not isinstance(result, Result):
-                    result = Result.success(self.id, result)
-                self.update_data(result=result)
-                if msg['cb_id']:
-                    M.ActorState.send(
-                        msg['cb_id'], msg['cb_slot'], (result,))
-                if self._state.options.ignore_result:
-                    log.info('Forget all about %r', self)
-                    self.forget()
-                else:
-                    self._state.unlock('complete')
+                result = self._retire(msg, result)
                 return result
             except exc.Suspend, s:
                 self._state.unlock(s.status)
@@ -138,11 +112,21 @@ class Actor(object):
                     raise
                 result = Result.failure(
                     self.id, 'Error in %r' % self, *sys.exc_info())
-                self.update_data(result=result)
-                if msg['cb_id']:
-                    M.ActorState.send(msg['cb_id'], msg['cb_slot'], (result,))
-                self._state.unlock('error')
+                result = self._retire(msg, result)
                 return result
+
+    def _retire(self, message, result):
+        if not isinstance(result, Result):
+            result = Result.success(self.id, result)
+        result = self._state.retire(result)
+        if message['cb_id']:
+            M.ActorState.send(
+                message['cb_id'], message['cb_slot'], (result,))
+        self._state.unlock('complete')
+        if self._state.options.ignore_result:
+            log.info('Forget all about %r', self)
+            self.forget()
+        return result
 
     def refresh(self):
         self._state = M.ActorState.m.get(_id=self.id)
@@ -168,21 +152,13 @@ class Actor(object):
         self._state.m.delete()
 
     def chain(self, slot, *args, **kwargs):
-        # Update the current actor's 'data.chain.OBJECTID' field
-        M.ActorState.m.update_partial(
-            { '_id': g.actor.id },
-            { '$push': {
-                    'data.chain.%s' % self.id: dict(
-                        cb_id=g.message['cb_id'],
-                        cb_slot=g.message['cb_slot']) } } )
-        # Send a message to the next actor in the chain, telling *it* to call
-        # back to the current trampoline_chain_result slot
-        M.ActorState.send(
-            self.id, slot, args, kwargs,
-            g.actor.id, 'trampoline_chain_result')
-        # Disable callback on this message (it will be handled in trampoline_chain_result
-        g.message['cb_id'] = g.message['cb_slot'] = None
-        raise exc.Suspend('ready')
+        self._state.chain(
+            g.message,
+            g.actor.id,
+            self.id, 
+            slot,
+            *args, **kwargs)
+        raise exc.Suspend('chained')
 
 class Result(object):
 
@@ -190,6 +166,10 @@ class Result(object):
         self.actor_id = actor_id
         self.status = status
         self.data = data
+
+    def __repr__(self):
+        return '<Result %s for %s>' % (
+            self.status, self.actor_id)
 
     @classmethod
     def success(cls, actor_id, value):
@@ -205,5 +185,15 @@ class Result(object):
     def get(self):
         if self.status == 'success':
             return self.data
-        else:
+        elif self.status == 'failure':
             raise self.data
+        elif self.status == 'chain':
+            cur = self
+            while cur.status == 'chain':
+                print 'Chaining', cur
+                a = Actor.by_id(self.data)
+                cur = a.result
+            return cur.get()
+        else:
+            assert False
+
