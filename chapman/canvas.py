@@ -56,8 +56,6 @@ class Group(function.FunctionActor):
             actor.Actor.send(
                 subid, 'run', cb_id=self.id, cb_slot='retire_child')
         self.refresh()
-        print 'Started group %s with subids: %r' % (
-            self.id, self._state.data.subids)
         if not self._state.data.waiting:
             return self.retire_group()
         raise exc.Suspend()
@@ -74,18 +72,12 @@ class Group(function.FunctionActor):
 
     @slot()
     def retire_child(self, result):
-        print 'Retiring sub_actor %s, result is %r' % (
-            result.actor_id, result.get())
         data = self._state.data
         results = data['results']
         waiting = data['waiting']
         presult = bson.Binary(dumps(result))
         rid = result.actor_id
         results[str(rid)] = presult
-        if rid not in waiting:
-            print waiting
-            print result
-            import ipdb; ipdb.set_trace()
         waiting.remove(rid)
         M.ActorState.m.update_partial(
             { '_id': self.id },
@@ -99,7 +91,6 @@ class Group(function.FunctionActor):
         data = self._state.data
         M.ActorState.m.remove({'_id': { '$in': data['subids'] } })
         results = data['results']
-        print 'Retire group, results is', results, data['subids']
         result = GroupResult(
             self.id, [ loads(results[str(subid)]) for subid in data['subids'] ])
         self.update_data(result=result)

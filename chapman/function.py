@@ -5,7 +5,7 @@ from .decorators import slot
 
 __all__ = ('FunctionActor',)
 
-log = logging.getLogger()
+log = logging.getLogger(__name__)
 
 class FunctionActor(Actor):
     target=None

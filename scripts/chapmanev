@@ -4,9 +4,11 @@
 
 Options:
   -h --help              show this help message and exit
+  -m --messages=REGEX    regex of messages to monitor [default: .*]
 """
 
 import os
+import re
 import time
 import logging
 from cPickle import loads
@@ -23,16 +25,18 @@ log = None
 def main(args):
     args = docopt(__doc__)
     log.info('Starting chapmanev')
-    mainloop()
+    mainloop(args)
 
-def mainloop():
+def mainloop(args):
     db = M.doc_session.db
     evcoll = db.chapman.event
     doc = db.chapman.sequence.find_one(dict(_id='event'))
     if doc:
         last = doc['next']
     while True:
-        spec = { '_id': { '$gt': last } }
+        spec = {
+            '_id': { '$gt': last },
+            'name': re.compile(args['--messages'])}
         q = evcoll.find(spec, tailable=True, await_data=True)
         q = q.sort('$natural')
         for ev in q:
@@ -46,15 +50,6 @@ def mainloop():
                 sactor = '<Unknown Actor %s>' % ev['actor_id']
             log.info('%s %s (latency %sms)', ev['name'], sactor,
                      1000.0 * elapsed.total_seconds())
-            if ev['name'] == 'send':
-                log.info('... %s(*%r, **%r)',
-                         ev['value']['slot'],
-                         loads(ev['value']['args']),
-                         loads(ev['value']['kwargs']))
-            elif ev['name'] == 'unlock':
-                log.info('... new status is %s', ev['value']['s'])
-            elif ev['name'] == 'reserve':
-                log.info('... %r', ev['value'])
             last = ev['_id']
         time.sleep(1)
        
