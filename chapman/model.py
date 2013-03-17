@@ -85,6 +85,7 @@ class ActorState(Document):
             queue=S.String(if_missing='chapman'),
             immutable=S.Bool(if_missing=False),
             ignore_result=S.Bool(if_missing=False)))
+    ts=Field({str: S.DateTime(if_missing=None)})
     mb=Field(
         [ { 'active': bool,
             'slot': str,
@@ -94,10 +95,16 @@ class ActorState(Document):
             'cb_slot': str }  ])
 
     @classmethod
-    def ls(cls):
-        for obj in cls.m.find():
+    def ls(cls, status=None):
+        q = {}
+        if status is not None:
+            q['status'] = { '$in': status.split(',') }
+        result = []
+        for obj in cls.m.find(q):
+            result.append(obj)
             print '%s: %s %s @%s' % (
                 obj._id, obj.status, obj.type, obj.worker)
+        return result
 
     @classmethod
     def reserve(cls, worker, queue='chapman', actor_id=None):
@@ -135,7 +142,9 @@ class ActorState(Document):
             cb_id=cb_id,
             cb_slot=cb_slot)
         result = cls.m.update_partial(
-            {'_id': id}, { '$push': { 'mb': msg } } )
+            {'_id': id},
+            { '$push': { 'mb': msg },
+              '$set': { 'ts.queue_%s' % slot: datetime.utcnow() } } )
         Event.publish('send', id, msg)
         return result
 
@@ -163,7 +172,8 @@ class ActorState(Document):
             { '_id': { '$in': ids } },
             { '$set': {
                     'result': bson.Binary(dumps(result)),
-                    'status': 'complete' },
+                    'status': 'complete',
+                    'ts.retire': datetime.utcnow()},
               '$pull': { 'mb': { 'active': True } } },
             multi=True)
         Event.publish('retire', self._id, ids)
@@ -187,12 +197,15 @@ class ActorState(Document):
     def unlock(self, new_status):
         '''Change the status and remove any active messages from the mailbox'''
         self.status = new_status
+        msg = self.active_message()
         self.mb = [
             msg for msg in self.mb
             if not msg.active ]
         ActorState.m.update_partial(
             { '_id': self._id },
-            { '$set': { 'status': new_status },
+            { '$set': {
+                    'status': new_status,
+                    'ts.unlock_%s' % msg['slot']: datetime.utcnow() },
               '$pull': { 'mb': { 'active': True } } } )
         Event.publish('unlock', self._id, dict(s=new_status))
 
