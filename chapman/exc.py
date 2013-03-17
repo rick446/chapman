@@ -28,14 +28,6 @@ class ActorError(ChapmanError):
         for line in self.args[2].splitlines():
             yield indent + line
 
-class Chain(ChapmanError):
-
-    def __init__(self, actor_id, slot, *args, **kwargs):
-        self.actor_id = actor_id
-        self.slot = slot
-        self.args = args
-        self.kwargs = kwargs
-
 class Timeout(ChapmanError): pass
 
 class Suspend(ChapmanError):
