@@ -187,13 +187,6 @@ class Result(object):
             return self.data
         elif self.status == 'failure':
             raise self.data
-        elif self.status == 'chain':
-            cur = self
-            while cur.status == 'chain':
-                print 'Chaining', cur
-                a = Actor.by_id(self.data)
-                cur = a.result
-            return cur.get()
         else:
             assert False
 
