@@ -28,14 +28,6 @@ class Worker(object):
             log.info('Worker got actor %r %s', actor, msg['slot'])
             yield actor
 
-    def reserve_actor(self, actor_id):
-        doc = M.ActorState.reserve(self._name, actor_id=actor_id)
-        if doc is None:
-            return None
-        ActorClass = Actor.by_name(doc.type)
-        actor = ActorClass(doc)
-        return actor
-
     def run_all(self, queue='chapman', waitfunc=None, raise_errors=False):
         for actor in self.actor_iterator(queue, waitfunc):
             actor.handle(raise_errors)
