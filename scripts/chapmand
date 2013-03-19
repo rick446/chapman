@@ -5,7 +5,7 @@
 Options:
   -h --help                 show this help message and exit
   -n,--name NAME            set the name of the worker
-  -q,--queues QUEUES        comma-separated list of queues [default: chapman]
+  -Q,--queues QUEUES        comma-separated list of queues [default: chapman]
   -c,--concurrency THREADS  number of threads to run [default: 1]
   -s,--sleep SLEEP          seconds to sleep when there is no work [default: 1]
   -d,--debug                drop into a debugger on task errors?
