@@ -109,7 +109,7 @@ class Actor(object):
             result = Result.success(self.id, result)
         result = self._state.retire(message, result)
         # M.Message.post_callback(self._state.cb_id, result)
-        if self._state.options.ignore_result:
+        if self._state.options.ignore_result and not self._state.parent_id:
             log.info('Forget all about %r', self)
             self.forget()
         return result
