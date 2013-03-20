@@ -202,9 +202,10 @@ class ActorState(Document):
             yield fmt % (
                 self._id, self.status, self.worker, actor)
             if cur.parent_id:
-                for line in path_iter(ActorState.m.get(
-                        _id=cur.parent_id), indent + '    '):
-                    yield line
+                cur = ActorState.m.get(_id=cur.parent_id)
+                if cur is not None:
+                    for line in path_iter(cur, indent + '    '):
+                        yield line
         return '\n'.join(path_iter(self))
 
     @property
@@ -222,6 +223,7 @@ class ActorState(Document):
         chain = [ cur ]
         while cur.parent_id is not None:
             cur = ActorState.m.get(_id=cur.parent_id)
+            if cur is None: break
             chain.append(cur)
         result.actor_id = cur._id
         # Save result
