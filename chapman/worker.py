@@ -31,6 +31,7 @@ class Worker(object):
     def run_all(self, queue='chapman', waitfunc=None, raise_errors=False):
         for msg, actor in self.actor_iterator(queue, waitfunc):
             actor.handle(msg, raise_errors)
+            assert actor._state.status != 'busy', actor._state
             M.doc_session.bind.bind.conn.end_request()
 
     def serve_forever(self, queues, sleep=1, raise_errors=False):

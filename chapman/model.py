@@ -194,6 +194,19 @@ class ActorState(Document):
                 obj._id, obj.status, obj.worker, actor)
         return result
 
+    def show_path(self):
+        def path_iter(cur, indent=''):
+            from chapman import Actor
+            actor = Actor.by_id(cur._id)
+            fmt = indent + '%s: %s @%s %r'
+            yield fmt % (
+                self._id, self.status, self.worker, actor)
+            if cur.parent_id:
+                for line in path_iter(ActorState.m.get(
+                        _id=cur.parent_id), indent + '    '):
+                    yield line
+        return '\n'.join(path_iter(self))
+
     @property
     def result(self):
         if self._result is None: return None
@@ -223,6 +236,8 @@ class ActorState(Document):
         # Perform callback(s)
         cb_ids = [ a.cb_id for a in chain if a.cb_id is not None ]
         Message.post_callback({'$in': cb_ids}, result)
+        # Unlock this actor
+        self.unlock(message, 'complete')
         Event.publish('retire', cur._id)
         return result
 
@@ -231,6 +246,7 @@ class ActorState(Document):
             { '_id': self._id },
             { '$set': { 'status': new_status,
                         'ts.suspend_%s' % new_status: datetime.utcnow()} } )
+        self.status = new_status
 
     def update_data(self, **kwargs):
         '''Updates the data field with pickled values'''
