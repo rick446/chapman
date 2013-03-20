@@ -230,7 +230,7 @@ class ActorState(Document):
             chain.append(cur)
         # Save result
         ActorState.m.update_partial(
-            { '_id': cur._id },
+            { '_id': result.actor_id },
             { '$set': { 'result': bson.Binary(dumps(result)),
                         'status': 'complete',
                         'ts.retire': datetime.utcnow() } })
