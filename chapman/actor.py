@@ -22,13 +22,15 @@ class Actor(object):
         return '<%s %s>' % (self.__class__.__name__, self._state._id)
 
     @classmethod
-    def create(cls, args=None, kwargs=None, **options):
+    def create(cls, args=None, kwargs=None, cb_id=None, **options):
         '''Create an actor instance'''
         if args is None: args = ()
         if kwargs is None: kwargs = {}
         all_options = dict(cls._options)
         all_options.update(options)
-        state = M.ActorState.make(dict(type=cls.name, options=all_options))
+        state = M.ActorState.make(dict(
+                type=cls.name, options=all_options,
+                cb_id=cb_id))
         state.update_data(cargs=list(args), ckwargs=kwargs)
         state.m.insert()
         return cls(state)
@@ -41,10 +43,6 @@ class Actor(object):
     @classmethod
     def si(cls, *args, **kwargs):
         return cls.create(args=args, kwargs=kwargs, immutable=True)
-
-    @classmethod
-    def send(cls, id, slot, args=None, kwargs=None, cb_id=None, cb_slot=None):
-        return M.ActorState.send(id, slot, args, kwargs, cb_id, cb_slot)
 
     @classmethod
     def spawn(cls, *args, **kwargs):
@@ -86,27 +84,18 @@ class Actor(object):
             self.forget()
         return result.get()
 
-    def start(self, args=None, kwargs=None, cb_id=None, cb_slot='run'):
-        self.send(self.id, 'run', args, kwargs, cb_id, cb_slot)
+    def start(self, args=None, kwargs=None):
+        M.Message.post(self.id, args=args, kwargs=kwargs)
 
-    def reserve(self, worker):
-        '''Reserve a single message for the actor
-
-        This is mainly used for testing. In normal cases, you'd use
-        ActorState.reserve to get the next available actor/message to handle.
-        '''
-        self._state = M.ActorState.reserve(worker=worker, actor_id=self.id)
-
-    def handle(self, raise_errors=False):
-        msg = self._state.active_message()
+    def handle(self, msg, raise_errors=False):
         with g.set_context(self, msg):
-            method = getattr(self, msg['slot'])
+            method = getattr(self, msg.slot)
             try:
-                result = method(*msg['args'], **msg['kwargs'])
+                result = method(*msg.args, **msg.kwargs)
                 result = self._retire(msg, result)
                 return result
             except exc.Suspend, s:
-                self._state.unlock(s.status)
+                self._state.unlock(msg, s.status)
             except:
                 if raise_errors:
                     raise
@@ -118,11 +107,8 @@ class Actor(object):
     def _retire(self, message, result):
         if not isinstance(result, Result):
             result = Result.success(self.id, result)
-        result = self._state.retire(result)
-        if message['cb_id']:
-            M.ActorState.send(
-                message['cb_id'], message['cb_slot'], (result,))
-        self._state.unlock('complete')
+        result = self._state.retire(message, result)
+        # M.Message.post_callback(self._state.cb_id, result)
         if self._state.options.ignore_result:
             log.info('Forget all about %r', self)
             self.forget()
@@ -152,12 +138,14 @@ class Actor(object):
         self._state.m.delete()
 
     def chain(self, slot, *args, **kwargs):
-        self._state.chain(
-            g.message,
-            g.actor.id,
-            self.id, 
-            slot,
-            *args, **kwargs)
+        '''child.chain('run', ...) => continue execution in the child actor'''
+        M.ActorState.chain(
+            parent_id=g.actor.id,
+            message=g.message,
+            child_id=self.id,
+            slot=slot,
+            args=args,
+            kwargs=kwargs)
         raise exc.Suspend('chained')
 
 class Result(object):

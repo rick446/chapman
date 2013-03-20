@@ -15,7 +15,7 @@ class Worker(object):
 
     def actor_iterator(self, queue='chapman', waitfunc=None):
         while True:
-            doc = M.ActorState.reserve(self._name, queue)
+            msg, doc = M.Message.reserve(queue, self._name)
             if doc is None:
                 if waitfunc is not None:
                     waitfunc()
@@ -24,13 +24,12 @@ class Worker(object):
                     break
             ActorClass = Actor.by_name(doc.type)
             actor = ActorClass(doc)
-            msg = doc.active_message()
             log.info('Worker got actor %r %s', actor, msg['slot'])
-            yield actor
+            yield msg, actor
 
     def run_all(self, queue='chapman', waitfunc=None, raise_errors=False):
-        for actor in self.actor_iterator(queue, waitfunc):
-            actor.handle(raise_errors)
+        for msg, actor in self.actor_iterator(queue, waitfunc):
+            actor.handle(msg, raise_errors)
             M.doc_session.bind.bind.conn.end_request()
 
     def serve_forever(self, queues, sleep=1, raise_errors=False):

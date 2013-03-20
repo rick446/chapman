@@ -24,8 +24,12 @@ def main(args):
     db = M.doc_session.db
     if 'chapman.event' in db.collection_names():
         db['chapman.event'].drop()
-    db.create_collection('chapman.event', capped=True, size=2**20,
-                         autoIndexId=False)
+    db.create_collection(
+        'chapman.event',
+        capped=True,
+        size=2**20,
+        max=100,
+        autoIndexId=False)
 
 if __name__ == '__main__':
     args = docopt(__doc__)

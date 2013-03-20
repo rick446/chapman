@@ -28,44 +28,42 @@ class TestBasic(unittest.TestCase):
 
     def test_run_actor(self):
         a = self.doubler.create()
-        Actor.send(a.id, 'run', (4,))
-        a = self.worker.actor_iterator().next()
-        result = a.handle()
+        M.Message.post(a.id, args=(4,))
+        msg, a = self.worker.actor_iterator().next()
+        result = a.handle(msg)
         self.assertEqual(result.get(), 8)
 
     def test_run_actor_error(self):
         a = self.doubler.create()
-        Actor.send(a.id, 'run')
-        a = self.worker.actor_iterator().next()
-        result = a.handle()
+        M.Message.post(a.id)
+        msg, a = self.worker.actor_iterator().next()
+        result = a.handle(msg)
         with self.assertRaises(exc.ActorError) as err:
             result.get()
         print '\n'.join(err.exception.format())
 
     def test_run_actor_error_debug(self):
         a = self.doubler.create()
-        Actor.send(a.id, 'run')
-        a = self.worker.actor_iterator().next()
+        M.Message.post(a.id)
+        msg, a = self.worker.actor_iterator().next()
         with self.assertRaises(TypeError):
-            a.handle(raise_errors=True)
+            a.handle(msg, raise_errors=True)
 
     def test_spawn(self):
         a = self.doubler.spawn(4)
-        a.reserve('foo')
-        print a.handle().get()
+        msg, a = self.worker.actor_iterator().next()
+        print a.handle(msg).get()
 
     def test_create_args(self):
         a = self.doubler.create((4,))
-        Actor.send(a.id, 'run')
-        a.reserve('foo')
-        self.assertEqual(8, a.handle(raise_errors=True).get())
+        msg = M.Message.post(a.id)
+        self.assertEqual(8, a.handle(msg, raise_errors=True).get())
 
     def test_curry(self):
         a = self.doubler.create()
         a.curry(4)
-        Actor.send(a.id, 'run')
-        a.reserve('foo')
-        self.assertEqual(8, a.handle(raise_errors=True).get())
+        msg = M.Message.post(a.id)
+        self.assertEqual(8, a.handle(msg, raise_errors=True).get())
 
     def test_ignore(self):
         l = []
@@ -111,7 +109,9 @@ class TestCanvas(unittest.TestCase):
 
     def _fact(self, x, acc=1):
         print '_fact(%s, %s)' % (x, acc)
-        if x == 0: return acc
+        if x == 0:
+            import ipdb; ipdb.set_trace()
+            return acc
         raise self.fact.s().chain('run', x-1, acc*x)
 
     def _fact2(self, x, acc=1):
@@ -136,8 +136,8 @@ class TestCanvas(unittest.TestCase):
         def tail(*args):
             events.append(None)
         t = tail.create()
-        a = Group.create(args=([],))
-        a.start(cb_id=t.id)
+        a = Group.create(
+            cb_id=M.Message.post(t.id, stat='pending')._id)
         for x in range(5):
             st = subtask.s(x)
             a.append(st)

@@ -14,6 +14,40 @@ from .context import g
 __all__ = ('Group','Pipeline')
 log = logging.getLogger(__name__)
 
+class _Element(function.FunctionActor):
+
+    @classmethod
+    def create(cls, parent_id, index, subid, **options):
+        obj = super(_Element, cls).create(**options)
+        M.ActorState.m.update_partial(
+            { '_id': obj.id },
+            { '$set': {
+                    'parent_id': parent_id,
+                    'data.index': index,
+                    'data.subid': subid } } )
+        obj.refresh()
+        return obj
+
+    def target(self, *args, **kwargs):
+        msg_cb = M.Message.post(self.id, 'retire', stat='pending')
+        subid = self._state.data.subid
+        M.ActorState.m.update_partial(
+            { '_id': subid },
+            { '$set': { 'cb_id': msg_cb._id } })
+        M.Message.post(
+            self._state.data.subid, args=args, kwargs=kwargs)
+        raise exc.Suspend()
+
+    @slot()
+    def retire(self, result):
+        M.ActorState.m.update_partial(
+            { '_id': self.id },
+            { '$set': { 'result': bson.Binary(dumps(result)) } })
+        M.Message.post(
+            self._state.parent_id, 'retire_element',
+            args=(self._state.data.index,))
+        raise exc.Suspend()
+
 class Group(function.FunctionActor):
 
     def __repr__(self):
@@ -22,79 +56,56 @@ class Group(function.FunctionActor):
             self._state.data.get('subids', None))
 
     @classmethod
-    def create(cls, args=None, kwargs=None, **options):
-        '''Create an actor instance'''
-        obj = super(Group, cls).create(args, kwargs, **options)
-        obj.update_data_raw(
-            results={},
-            subids=[],
-            waiting=[],
-            cb_id=None,
-            cb_slot=None)
-        return obj
-
-    @classmethod
     def spawn(cls, sub_actors):
-        subids = [ s.id for s in sub_actors ]
-        obj = cls.create(args=(subids,))
+        obj = cls.create()
+        for i, sa in enumerate(sub_actors):
+            _Element.create(obj.id, i, sa.id)
         obj.start()
         obj.refresh()
         return obj
 
-    def target(self, subids):
-        log.info('Start group %r', subids)
-        cb_id = g.message['cb_id']
-        cb_slot = g.message['cb_slot']
-        g.message.update(cb_id=None, cb_slot=None)
-        M.ActorState.m.update_partial(
-            { '_id': self.id },
-            { '$pushAll': { 'data.subids': subids,
-                            'data.waiting': subids },
-              '$set': { 'data.cb_id': cb_id,
-                        'data.cb_slot': cb_slot } })
-        for subid in subids:
-            actor.Actor.send(
-                subid, 'run', cb_id=self.id, cb_slot='retire_child')
+    def target(self):
+        num_sub = 0
+        q = M.ActorState.m.find(
+            { 'parent_id': self._id })
+        q = q.sort('data.index')
+        for el_state in q:
+            M.Message.post(el_state._id)
+            num_sub += 1
+        self.update_data_raw(
+            num_sub=num_sub,
+            num_remain=num_sub)
         self.refresh()
-        if not self._state.data.waiting:
+        if not num_sub:
             return self.retire_group()
         raise exc.Suspend()
 
     def append(self, sub):
-        M.ActorState.m.update_partial(
+        self._state = M.ActorState.m.find_and_modify(
             { '_id': self.id },
-            { '$push': { 'data.subids': sub.id,
-                         'data.waiting': sub.id } })
-        self._state.data['subids'].append(sub.id)
-        self._state.data['waiting'].append(sub.id)
-        actor.Actor.send(
-            sub.id, 'run', cb_id=self.id, cb_slot='retire_child')
+            update={'$inc': {
+                    'data.num_sub': 1,
+                    'data.num_remain': 1 } },
+            new=True)
+        el = _Element.create(
+            self.id, self._state.data.num_sub-1, sub.id)
+        el.start()
 
     @slot()
-    def retire_child(self, result):
+    def retire_element(self, index):
         data = self._state.data
-        results = data['results']
-        waiting = data['waiting']
-        presult = bson.Binary(dumps(result))
-        rid = result.actor_id
-        results[str(rid)] = presult
-        waiting.remove(rid)
+        if data.num_remain == 1:
+            return self.retire_group()
         M.ActorState.m.update_partial(
             { '_id': self.id },
-            { '$pull': { 'data.waiting': rid },
-              '$set': { 'data.results.%s' % rid: presult } })
-        if not waiting:
-            return self.retire_group()
+            { '$inc': { 'data.num_remain': -1 } } )
         raise exc.Suspend()
 
     def retire_group(self):
-        data = self._state.data
-        M.ActorState.m.remove({'_id': { '$in': data['subids'] } })
-        results = data['results']
+        q = M.ActorState.m.find({'parent_id': self.id})
+        q = q.sort('data.index')
         result = GroupResult(
-            self.id, [ loads(results[str(subid)]) for subid in data['subids'] ])
-        self.update_data(result=result)
-        g.message.update(cb_id=data['cb_id'], cb_slot=data['cb_slot'])
+            self.id, [ sub.result for sub in q ])
         return result
 
 class Pipeline(function.FunctionActor):

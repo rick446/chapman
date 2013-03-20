@@ -67,10 +67,111 @@ class Event(Document):
                     return None
             time.sleep(sleep)
 
+class Message(Document):
+    class __mongometa__:
+        name = 'chapman.message'
+        session = doc_session
+        indexes = [
+            [ ('q', 1),
+              ('stat', 1),
+              ('pri', -1),
+              ('ts', 1),
+              ('actor_id', 1) ] ]
+
+    _id = Field(S.ObjectId)
+    aid = Field(S.ObjectId, if_missing=None)
+    q = Field(str)
+    stat = Field(str, if_missing='ready')
+    pri = Field(int, if_missing=10)
+    ts = Field(datetime, if_missing=datetime.utcnow)
+    wkr = Field(str)
+    slot = Field(str)
+    _args = Field('args', S.Binary)
+    _kwargs = Field('kwargs', S.Binary)
+
+    @property
+    def args(self):
+        if self._args is None: return None
+        return loads(self._args)
+    @args.setter
+    def args(self, value):
+        self._args = bson.Binary(dumps(value))
+        
+    @property
+    def kwargs(self):
+        if self._kwargs is None: return None
+        return loads(self._kwargs)
+    @kwargs.setter
+    def kwargs(self, value):
+        self._kwargs = bson.Binary(dumps(value))
+
+    @classmethod
+    def reserve(cls, queue, worker):
+        '''Find the first message for the first non-busy worker'''
+        sort = [ ('pri', -1), ('ts', 1) ]
+        update = { '$set': {
+                'wkr': worker, 'stat': 'busy' } }
+        busy_actors = []
+        while True:
+            spec = { 'q': queue, 'stat': 'ready' }
+            if busy_actors:
+                spec['aid'] = { '$nin': busy_actors }
+            msg = cls.m.find_and_modify(
+                spec,
+                sort=sort,
+                update=update,
+                new=True)
+            if msg is None: return None, None
+            astate = ActorState.m.find_and_modify(
+                { '_id': msg.aid, 'status': 'ready' },
+                update={'$set': { 'status':'busy', 'worker': worker } },
+                new=True)
+            if astate is None:
+                busy_actors.append(msg.actor_id)
+                cls.m.update_partial(
+                    { '_id': msg._id },
+                    { '$set': { 'wkr': None } } )
+            else:
+                return msg, astate
+
+    @classmethod
+    def create(cls, actor_id, slot='run', stat='ready',
+             args=None, kwargs=None):
+        if args is None: args = ()
+        if kwargs is None: kwargs = {}
+        astate = ActorState.m.get(_id=actor_id)
+        obj = cls.make(dict(
+                aid=actor_id, slot=slot, stat=stat,
+                q=astate.options.queue,
+                pri=astate.options.priority, 
+                args=bson.Binary(dumps(args)),
+                kwargs=bson.Binary(dumps(kwargs))))
+        return obj
+
+    @classmethod
+    def post(cls, actor_id, slot='run', stat='ready',
+             args=None, kwargs=None):
+        obj = cls.create(actor_id, slot, stat, args, kwargs)
+        obj.m.insert()
+        return obj
+
+    @classmethod
+    def post_callback(cls, cb_id, result):
+        if not cb_id: return
+        cls.m.update_partial(
+            {'_id': cb_id},
+            {'$set': {
+                    'stat': 'ready',
+                    'args': bson.Binary(dumps((result,))) } },
+            multi=True)
+
 class ActorState(Document):
     class __mongometa__:
         name='chapman.state'
         session = doc_session
+        indexes = [
+            [ ('status', 1) ]
+            ]
 
     _id=Field(S.ObjectId)
     parent_id = Field(S.ObjectId, if_missing=None)
@@ -79,20 +180,13 @@ class ActorState(Document):
     type=Field(str)                # name of Actor subclass
     data=Field({str:None})         # actor-specific data
     cb_id=Field(S.ObjectId, if_missing=None)
-    cb_slot=Field(str)
     _result=Field('result', S.Binary)
     options=Field(dict(
             queue=S.String(if_missing='chapman'),
+            priority=S.Int(if_missing=10),
             immutable=S.Bool(if_missing=False),
             ignore_result=S.Bool(if_missing=False)))
     ts=Field({str: S.DateTime(if_missing=None)})
-    mb=Field(
-        [ { 'active': bool,
-            'slot': str,
-            'args': S.Binary,
-            'kwargs': S.Binary,
-            'cb_id': S.ObjectId(if_missing=None),
-            'cb_slot': str }  ])
 
     @classmethod
     def ls(cls, status=None):
@@ -106,48 +200,6 @@ class ActorState(Document):
                 obj._id, obj.status, obj.type, obj.worker)
         return result
 
-    @classmethod
-    def reserve(cls, worker, queue='chapman', actor_id=None):
-        '''Reserve a ready actor with unprocessed messages and return
-        its state'''
-        if actor_id is None:
-            spec = {
-                'status': { '$in': [ 'ready', 'complete' ] },
-                'options.queue': queue,
-                'mb.active': False }
-        else:
-            spec = {
-                'status': 'ready',
-                'mb.active': False,
-                '_id': actor_id }
-        update = {
-            '$set': {
-                'status': 'busy',
-                'worker': worker,
-                'mb.$.active': True } }
-        doc = cls.m.find_and_modify(query=spec, update=update, new=True)
-        if doc is not None:
-            Event.publish('reserve', doc._id, doc.active_message_raw())
-        return doc
-
-    @classmethod
-    def send(cls, id, slot, args=None, kwargs=None, cb_id=None, cb_slot=None):
-        if args is None: args = ()
-        if kwargs is None: kwargs = {}
-        msg = dict(
-            active=False,
-            slot=slot,
-            args=bson.Binary(dumps(args)),
-            kwargs=bson.Binary(dumps(kwargs)),
-            cb_id=cb_id,
-            cb_slot=cb_slot)
-        result = cls.m.update_partial(
-            {'_id': id},
-            { '$push': { 'mb': msg },
-              '$set': { 'ts.queue_%s' % slot: datetime.utcnow() } } )
-        Event.publish('send', id, msg)
-        return result
-
     @property
     def result(self):
         if self._result is None: return None
@@ -157,57 +209,35 @@ class ActorState(Document):
         presult = bson.Binary(dumps(value))
         self._result = presult
 
-    def retire(self, result):
+    def retire(self, message, result):
         cur = self
-        ids = [cur._id]
-        to_remove = []
+        # Collect chain
+        chain = [ cur ]
         while cur.parent_id is not None:
-            to_remove.append(cur._id)
             cur = ActorState.m.get(_id=cur.parent_id)
-            ids.append(cur._id)
+            chain.append(cur)
         result.actor_id = cur._id
-        if to_remove:
-            ActorState.m.remove({'_id': {'$in': to_remove } })
+        # Save result
         ActorState.m.update_partial(
-            { '_id': { '$in': ids } },
-            { '$set': {
-                    'result': bson.Binary(dumps(result)),
-                    'status': 'complete',
-                    'ts.retire': datetime.utcnow()},
-              '$pull': { 'mb': { 'active': True } } },
-            multi=True)
-        Event.publish('retire', self._id, ids)
-        self.result = result
+            { '_id': cur._id },
+            { '$set': { 'result': bson.Binary(dumps(result)),
+                        'status': 'complete',
+                        'ts.retire': datetime.utcnow() } })
+        # Remove tail actor(s)
+        if len(chain) > 1:
+            ActorState.m.remove({'_id': {'$in': chain[:-1] } })
+        # Perform callback(s)
+        cb_ids = [ a.cb_id for a in chain if a.cb_id is not None ]
+        Message.post_callback(cb_ids, result)
+        Event.publish('retire', cur._id)
         return result
 
-    def active_message_raw(self):
-        active_messages = [ msg for msg in self.mb if msg.active ]
-        assert len(active_messages) == 1, active_messages
-        return active_messages[0]
-
-    def active_message(self):
-        msg = self.active_message_raw()
-        return dict(
-            slot=msg.slot,
-            args=loads(msg.args),
-            kwargs=loads(msg.kwargs),
-            cb_id=msg.cb_id,
-            cb_slot=msg.cb_slot)
-
-    def unlock(self, new_status):
-        '''Change the status and remove any active messages from the mailbox'''
-        self.status = new_status
-        msg = self.active_message()
-        self.mb = [
-            msg for msg in self.mb
-            if not msg.active ]
+    def unlock(self, message, new_status):
+        message.m.delete()
         ActorState.m.update_partial(
             { '_id': self._id },
-            { '$set': {
-                    'status': new_status,
-                    'ts.unlock_%s' % msg['slot']: datetime.utcnow() },
-              '$pull': { 'mb': { 'active': True } } } )
-        Event.publish('unlock', self._id, dict(s=new_status))
+            { '$set': { 'status': new_status,
+                        'ts.suspend_%s' % new_status: datetime.utcnow()} } )
 
     def update_data(self, **kwargs):
         '''Updates the data field with pickled values'''
@@ -230,16 +260,12 @@ class ActorState(Document):
         return loads(self.data[key])
 
     @classmethod
-    def chain(cls, message, parent_id, child_id, slot, *args, **kwargs):
-        msg = dict(
-            active=False,
-            slot=slot,
-            args=bson.Binary(dumps(args)),
-            kwargs=bson.Binary(dumps(kwargs)),
-            cb_id=message['cb_id'],
-            cb_slot=message['cb_slot'])
+    def chain(cls, parent_id, message, child_id, slot, args, kwargs):
         ActorState.m.update_partial(
             { '_id': child_id },
-            { '$push': { 'mb': msg },
-              '$set': { 'parent_id': parent_id } })
-        message['cb_id'] = message['cb_slot'] = None
+            { '$set': { 'parent_id': parent_id } })
+        Message.post(
+            child_id,
+            slot=slot,
+            args=args,
+            kwargs=kwargs)
