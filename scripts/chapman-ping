@@ -1,0 +1,73 @@
+#!/usr/bin/env python
+"""Usage:
+        chapman-ping <config> [options]
+
+Options:
+  -h --help                 show this help message and exit
+"""
+
+import os
+import time
+import socket
+import logging
+import threading
+
+from docopt import docopt
+from pyramid.paster import bootstrap
+
+log = None
+
+def main(args):
+    from chapman import model as M
+    with EventCapture('pong', verbose=True) as cap:
+        M.Event.publish('ping', None)
+        log.info('Sent ping')
+        time.sleep(2)
+
+class EventCapture(object):
+
+    def __init__(self, name, verbose=False):
+        self._name = name
+        self._t = None
+        self._exit = False
+        self._events = []
+        self._verbose = verbose
+
+    def __enter__(self):
+        self._t = threading.Thread(
+            target=self._capture)
+        self._exit = False
+        self._events = []
+        self._t.start()
+        return self
+
+    def __exit__(self, ex_type, ex_value, ex_tb):
+        self._exit = True
+
+    def _capture(self):
+        from chapman import model as M
+        doc = M.Sequence.m.get(_id='event')
+        if doc: last = doc._next
+        else: last = 0
+        while not self._exit:
+            q = M.Event.m.find(
+                {'_id': {'$gt': last },
+                 'name': self._name })
+            q = q.hint([('$natural',1)])
+            for ev in q:
+                if self._verbose:
+                    print ev
+                self._events.append(ev)
+                last = ev._id
+
+    def __iter__(self):
+        return iter(self._events)
+
+if __name__ == '__main__':
+    args = docopt(__doc__)
+    logging.config.fileConfig(
+        args['<config>'],
+        defaults=dict(here=os.getcwd()))
+    bootstrap(args['<config>'])
+    log = logging.getLogger('chapmand')
+    main(args)
