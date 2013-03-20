@@ -109,30 +109,22 @@ class Message(Document):
     def reserve(cls, queue, worker):
         '''Find the first message for the first non-busy worker'''
         sort = [ ('pri', -1), ('ts', 1) ]
-        update = { '$set': {
-                'wkr': worker, 'stat': 'busy' } }
-        busy_actors = []
-        while True:
-            spec = { 'q': queue, 'stat': 'ready' }
-            if busy_actors:
-                spec['aid'] = { '$nin': busy_actors }
-            msg = cls.m.find_and_modify(
-                spec,
-                sort=sort,
-                update=update,
-                new=True)
-            if msg is None: return None, None
+        spec = { 'q': queue, 'stat': 'ready' }
+        for msg in cls.m.find(spec).sort(sort):
             astate = ActorState.m.find_and_modify(
                 { '_id': msg.aid, 'status': 'ready' },
                 update={'$set': { 'status':'busy', 'worker': worker } },
                 new=True)
-            if astate is None:
-                busy_actors.append(msg.actor_id)
-                cls.m.update_partial(
-                    { '_id': msg._id },
-                    { '$set': { 'wkr': None } } )
-            else:
-                return msg, astate
+            if astate is None: continue
+            cls.m.update_partial(
+                { '_id': msg._id },
+                { '$set': {
+                        'stat': 'busy',
+                        'wkr': worker } })
+            msg.stat = 'busy'
+            msg.wkr = worker
+            return msg, astate
+        return None, None
 
     @classmethod
     def create(cls, actor_id, slot='run', stat='ready',
@@ -235,7 +227,6 @@ class ActorState(Document):
         return result
 
     def unlock(self, message, new_status):
-        message.m.delete()
         ActorState.m.update_partial(
             { '_id': self._id },
             { '$set': { 'status': new_status,

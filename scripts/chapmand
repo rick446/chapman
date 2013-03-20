@@ -20,8 +20,6 @@ import threading
 from docopt import docopt
 from pyramid.paster import bootstrap
 
-from chapman import worker
-
 log = None
 
 def main(args):
@@ -46,6 +44,7 @@ def main(args):
     
 
 def thread(name, queues, sleep, debug):
+    from chapman import worker
     log.info('Starting worker thread')
     while True:
         try:
@@ -57,9 +56,9 @@ def thread(name, queues, sleep, debug):
 
 if __name__ == '__main__':
     args = docopt(__doc__)
-    bootstrap(args['<config>'])
     logging.config.fileConfig(
         args['<config>'],
         defaults=dict(here=os.getcwd()))
+    bootstrap(args['<config>'])
     log = logging.getLogger('chapmand')
     main(args)

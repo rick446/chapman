@@ -175,6 +175,7 @@ class TestCanvas(unittest.TestCase):
         self.assertEqual(1, M.ActorState.m.find().count())
         a.forget()
         self.assertEqual(0, M.ActorState.m.find().count())
+        self.assertEqual(0, M.Message.m.find().count())
         
     def test_chain(self):
         a = self.fact.create(immutable=True)
