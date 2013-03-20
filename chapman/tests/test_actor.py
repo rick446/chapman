@@ -110,7 +110,6 @@ class TestCanvas(unittest.TestCase):
     def _fact(self, x, acc=1):
         print '_fact(%s, %s)' % (x, acc)
         if x == 0:
-            import ipdb; ipdb.set_trace()
             return acc
         raise self.fact.s().chain('run', x-1, acc*x)
 
@@ -137,7 +136,7 @@ class TestCanvas(unittest.TestCase):
             events.append(None)
         t = tail.create()
         a = Group.create(
-            cb_id=M.Message.post(t.id, stat='pending')._id)
+            [], cb_id=M.Message.post(t.id, stat='pending')._id)
         for x in range(5):
             st = subtask.s(x)
             a.append(st)
@@ -165,11 +164,11 @@ class TestCanvas(unittest.TestCase):
         self.assertEqual(a.result.get(), 4)
 
     def test_chord(self):
-        subids = [self.doubler.create((x,)).id for x in range(5) ]
-        a0 = Group.create(args=(subids,))
+        subs = [self.doubler.s(x) for x in range(5) ]
+        a0 = Group.create(subs)
         a1 = self.sum.create()
         a = Pipeline.spawn([a0, a1])
-        self.assertEqual(8, M.ActorState.m.find().count())
+        self.assertEqual(15, M.ActorState.m.find().count())
         self.worker.run_all(raise_errors=True)
         a.refresh()
         self.assertEqual(20, a.result.get())

@@ -190,14 +190,16 @@ class ActorState(Document):
 
     @classmethod
     def ls(cls, status=None):
+        from chapman import Actor
         q = {}
         if status is not None:
             q['status'] = { '$in': status.split(',') }
         result = []
         for obj in cls.m.find(q):
             result.append(obj)
-            print '%s: %s %s @%s' % (
-                obj._id, obj.status, obj.type, obj.worker)
+            actor = Actor.by_id(obj._id)
+            print '%s: %s @%s %r' % (
+                obj._id, obj.status, obj.worker, actor)
         return result
 
     @property
@@ -228,7 +230,7 @@ class ActorState(Document):
             ActorState.m.remove({'_id': {'$in': chain[:-1] } })
         # Perform callback(s)
         cb_ids = [ a.cb_id for a in chain if a.cb_id is not None ]
-        Message.post_callback(cb_ids, result)
+        Message.post_callback({'$in': cb_ids}, result)
         Event.publish('retire', cur._id)
         return result
 
