@@ -222,10 +222,10 @@ class ActorState(Document):
         # Collect chain
         chain = [ cur ]
         while cur.parent_id is not None:
+            result.actor_id = cur._id
             cur = ActorState.m.get(_id=cur.parent_id)
             if cur is None: break
             chain.append(cur)
-        result.actor_id = cur._id
         # Save result
         ActorState.m.update_partial(
             { '_id': cur._id },
