@@ -72,6 +72,7 @@ class Message(Document):
         name = 'chapman.message'
         session = doc_session
         indexes = [
+            [ ('aid', 1) ],
             [ ('q', 1),
               ('stat', 1),
               ('pri', -1),
@@ -162,7 +163,8 @@ class ActorState(Document):
         name='chapman.state'
         session = doc_session
         indexes = [
-            [ ('status', 1) ]
+            [ ('status', 1),
+              ('worker', 1) ]
             ]
 
     _id=Field(S.ObjectId)

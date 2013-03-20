@@ -21,6 +21,9 @@ setup(name='Chapman',
         'scripts/chapmand',
         'scripts/chapmanev',
         'scripts/chapman-init',
+        'scripts/chapman-ping',
+        'scripts/chapman-kill',
+        'scripts/chapman-unlock',
         ],
       install_requires=[
           # -*- Extra requirements: -*-

@@ -23,7 +23,7 @@ from pyramid.paster import bootstrap
 log = None
 
 def main(args):
-    args = docopt(__doc__)
+    from chapman import worker
     name = args['--name']
     queues = args['--queues'].split(',')
     sleep = int(args['--sleep'])
@@ -32,27 +32,13 @@ def main(args):
         name = 'chapmand-%s-%s' % (
             socket.getfqdn(), os.getpid())
     log.info('Starting chapmand %s: listening on %s', name, queues)
-    if args['--concurrency'] == '1':
-        return thread(name, queues, sleep, debug)
-    for x in range(int(args['--concurrency'])):
-        t = threading.Thread(target=thread, args=(name,queues, sleep, debug))
-        t.setDaemon(True)
-        t.start()
+    num_threads = int(args['--concurrency'])
+    w = worker.Worker(
+        name, queues, num_threads=num_threads, raise_errors=args['--debug'])
+    w.start()
     while True:
         time.sleep(30)
         log.info('--- mark ---')
-    
-
-def thread(name, queues, sleep, debug):
-    from chapman import worker
-    log.info('Starting worker thread')
-    while True:
-        try:
-            w = worker.Worker(name)
-            w.serve_forever(queues, sleep, raise_errors=debug)
-        except:
-            log.exception('Unexpected error in worker, restarting in 5s')
-            time.sleep(5)
 
 if __name__ == '__main__':
     args = docopt(__doc__)
