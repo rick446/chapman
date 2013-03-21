@@ -78,7 +78,7 @@ class Group(CompositeActor):
                     'data.num_remain': 1 } },
             new=True)
         el = _Element.create(
-            self.id, self._state.data.num_sub-1, sub.id)
+            self.id, self._state.data.num_sub-1, sub.id, **sub._state.options)
         el.start()
 
     @slot()
