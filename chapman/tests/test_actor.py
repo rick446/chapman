@@ -15,7 +15,7 @@ class TestBasic(unittest.TestCase):
         ming.config.configure_from_nested_dict(dict(
                 chapman=dict(uri='mim://')))
         ming.mim.Connection.get().clear_all()
-        self.worker = Worker('test')
+        self.worker = Worker('test', ['chapman'])
         self.doubler = FunctionActor.decorate('double')(self._double)
 
     def _double(self, x):
@@ -98,7 +98,7 @@ class TestCanvas(unittest.TestCase):
         ming.config.configure_from_nested_dict(dict(
                 chapman=dict(uri='mim://')))
         ming.mim.Connection.get().clear_all()
-        self.worker = Worker('test')
+        self.worker = Worker('test', ['chapman'])
         self.doubler = FunctionActor.decorate('double')(self._double)
         self.fact = FunctionActor.decorate('fact')(self._fact)
         self.fact2 = FunctionActor.decorate('fact2')(self._fact2)

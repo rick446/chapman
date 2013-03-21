@@ -153,13 +153,13 @@ class Message(Document):
     @classmethod
     def post_callback(cls, cb_id, result):
         if not cb_id: return
-        obj = cls.m.find_and_modify(
+        cls.m.update_partial(
             {'_id': cb_id},
             {'$set': {
                     'stat': 'ready',
                     'args': bson.Binary(dumps((result,))) } },
-            new=True)
-        Event.publish('send', obj.aid)
+            multi=True)
+        Event.publish('send', None)
 
 class ActorState(Document):
     class __mongometa__:
@@ -231,6 +231,8 @@ class ActorState(Document):
             cur = ActorState.m.get(_id=cur.parent_id)
             if cur is None: break
             chain.append(cur)
+        if cur is not None:
+            result.actor_id = cur._id
         # Save result
         ActorState.m.update_partial(
             { '_id': result.actor_id },
