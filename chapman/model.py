@@ -147,17 +147,19 @@ class Message(Document):
              args=None, kwargs=None):
         obj = cls.create(actor_id, slot, stat, args, kwargs)
         obj.m.insert()
+        Event.publish('send', actor_id)
         return obj
 
     @classmethod
     def post_callback(cls, cb_id, result):
         if not cb_id: return
-        cls.m.update_partial(
+        obj = cls.m.find_and_modify(
             {'_id': cb_id},
             {'$set': {
                     'stat': 'ready',
                     'args': bson.Binary(dumps((result,))) } },
-            multi=True)
+            new=True)
+        Event.publish('send', obj.aid)
 
 class ActorState(Document):
     class __mongometa__:
