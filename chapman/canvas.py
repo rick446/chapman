@@ -1,180 +1,108 @@
-import logging
-from cPickle import dumps, loads
+from ming import Session, Field
+from ming import schema as S
+from ming.declarative import Document
 
-import sys
-import bson
+class Task(Document):
 
-from . import exc
-from . import actor
-from . import function
-from . import model as M
-from .decorators import slot
-from .context import g
+    def __init__(self, id):
+        self._id = id
+    
+    def run(self, msg):
+        '''Do the work of the task'''
+        raise NotImplementedError, 'run'
 
-__all__ = ('Group','Pipeline')
-log = logging.getLogger(__name__)
-
-class CompositeActor(function.FunctionActor):
-
-    def __repr__(self):
-        return '<%s %s>' % (
-            self.__class__.__name__,
-            self.id)
+    def start(self, *args, **kwargs):
+        '''Set the task to ready status and send a 'run' message'''
+        TaskState.m.update_partial(
+            { '_id': self._id },
+            { '$set': { 'status': 'ready' } } )
+        msg = Message.s(self._id, 'run', *args, **kwargs)
+        msg.post()
 
     @classmethod
-    def create(
-        cls, sub_actors,
-        args=None, kwargs=None,
-        cb_id=None, **options):
-        obj = super(CompositeActor, cls).create(
-            args=args, kwargs=kwargs, cb_id=cb_id, **options)
-        for i, sa in enumerate(sub_actors):
-            _Element.create(obj.id, i, sa.id, **sa._state.options)
-        return obj
+    def s(cls):
+        return cls()
 
-    @classmethod
-    def s(cls, sub_actors, *args, **kwargs):
-        return cls.create(
-            sub_actors, args=args, kwargs=kwargs)
-
-    @classmethod
-    def si(cls, sub_actors, *args, **kwargs):
-        return cls.create(
-            sub_actors, args=args, kwargs=kwargs, immutable=True)
-
-    @classmethod
-    def spawn(cls, sub_actors, *args, **kwargs):
-        obj = cls.create(sub_actors, args=args, kwargs=kwargs)
-        obj.start()
-        obj.refresh()
-        return obj
-
-class Group(CompositeActor):
-
-    def target(self):
-        num_sub = 0
-        q = M.ActorState.m.find(
-            { 'parent_id': self.id })
-        q = q.sort('data.index')
-        for el_state in q:
-            M.Message.post(el_state._id)
-            num_sub += 1
-        self.update_data_raw(
-            num_sub=num_sub,
-            num_remain=num_sub)
-        self.refresh()
-        if not num_sub:
-            return self.retire_group()
-        raise exc.Suspend()
-
-    def append(self, sub):
-        self._state = M.ActorState.m.find_and_modify(
-            { '_id': self.id },
-            update={'$inc': {
-                    'data.num_sub': 1,
-                    'data.num_remain': 1 } },
-            new=True)
-        el = _Element.create(
-            self.id, self._state.data.num_sub-1, sub.id, **sub._state.options)
-        log.info('Append %r with sub %r', el, sub) 
-        el.start()
-
-    @slot()
-    def retire_element(self, index, result):
-        data = self._state.data
-        if data.num_remain == 1:
-            return self.retire_group()
-        M.ActorState.m.update_partial(
-            { '_id': self.id },
-            { '$inc': { 'data.num_remain': -1 } } )
-        raise exc.Suspend()
-
-    def retire_group(self):
-        q = M.ActorState.m.find({'parent_id': self.id})
-        q = q.sort('data.index')
-        result = GroupResult(
-            self.id, [ sub.result for sub in q ])
-        M.ActorState.m.remove({'parent_id': self.id})
-        return result
-
-class Pipeline(CompositeActor):
-
-    def target(self):
-        el_state = M.ActorState.m.find({
-                'parent_id':self.id,
-                'data.index': 0 }).one()
-        M.Message.post(el_state._id)
-        self.update_data_raw(cur_index=0)
-        self.refresh()
-        raise exc.Suspend()
-
-    @slot()
-    def retire_element(self, index, result):
-        cur_index = self._state.data.cur_index
-        self.update_data_raw(cur_index=cur_index+1)
-        el_state = M.ActorState.m.find({
-                'parent_id':self.id,
-                'data.index': cur_index+1 }).first()
-        if el_state is None:
-            return self.retire_pipeline(result)
-        if el_state.options.immutable:
-            M.Message.post(el_state._id)
+    def complete(self, result):
+        doc = Task.m.get(_id=self._id)
+        if doc.on_complete:
+            msg = Message.m.get(_id=doc.on_complete)
+            msg.post()
+            self.m.delete()
+        elif doc.ignore_result:
+            self.m.delete()
         else:
-            M.Message.post(el_state._id, args=(result.get(),))
-        raise exc.Suspend()
+            Task.m.update_partial(
+                { '_id': self._id },
+                { '$set': { 'result': result,
+                            'status': 'complete' } } )
 
-    def retire_pipeline(self, result):
-        M.ActorState.m.remove({'parent_id': self.id})
-        return result
-
-class GroupResult(actor.Result):
-    def __init__(self, actor_id, sub_results):
-        self.actor_id = actor_id
-        self.sub_results = sub_results
-
-    def __repr__(self):
-        return '<GroupResult for %s>' % (
-            self.actor_id)
-
-    def get(self):
-        return [ sr.get() for sr in self.sub_results ]
-
-class _Element(function.FunctionActor):
-
-    def __repr__(self):
-        return '<Element %d of %r>' % (
-            self._state.data.index, self._state.parent_id)
+class Group(Task):
 
     @classmethod
-    def create(cls, parent_id, index, subid, **options):
-        obj = super(_Element, cls).create(**options)
-        M.ActorState.m.update_partial(
-            { '_id': obj.id },
+    def s(cls, subtask_ids):
+        self = super(Group, cls).s()
+        for id in subtask_ids:
+            self.append(id)
+        return self
+
+    def run(self):
+        '''Suspend the group and start all pending elements'''
+        Task.m.update_partial(
+            { '_id': self._id },
+            { '$set': { 'status': 'suspend' } } )
+        for st in Task.m.find(
+            { 'parent_id': self._id, 'status': 'pending' }):
+            st.start()
+
+    def append(self, subtask_id):
+        '''Link the given (pending) subtask_id to the group'''
+        doc = Task.m.find_and_modify(
+            { '_id': self._id },
+            { '$inc': { 'data.n_el': 1 } },
+            new=True)
+        return _El.s(self.id, doc['data']['n_el']-1, subtask_id)
+        
+    def retire_group(self):
+        '''Called by the last element in the group to save the result
+        and handle '''
+        q = Task.m.find({'parent_id': self._id })
+        q = q.sort('index')
+        results = []
+        for t in q:
+            results.append(t.result)
+            t.m.delete()
+        self.complete(GroupResult(results))
+
+class _El(Task):
+    '''Elements exist as glue between composite tasks and their subtasks. They
+    remeber their position within the composite as well as the result of the
+    subtask.
+    '''
+
+    @classmethod
+    def s(cls, parent_id, index, subtask_id):
+        self = super(_El, cls).s()
+        cls.m.update_partial(
+            { '_id': self._id },
             { '$set': {
                     'parent_id': parent_id,
-                    'data.index': index,
-                    'data.subid': subid } } )
-        obj.refresh()
-        return obj
+                    'data': index } })
+        retire_msg = Message.s(self._id, 'retire')
+        cls.m.update_partial(
+            { '_id': subtask_id },
+            { '$set': { 'on_complete': retire_msg._id } } )
+        return self
+    
+    def target(self):
+        for t in Task.m.find(
+            { 'parent_id': self.group_id,
+              'status': { '$in': [ 'pending', 'busy' ] } }):
+            return
+        group = Task.get(self.group_id)
+        group.retire()
+        self.complete()
 
-    def target(self, *args, **kwargs):
-        msg_cb = M.Message.post(self.id, 'retire', stat='pending')
-        subid = self._state.data.subid
-        M.ActorState.m.update_partial(
-            { '_id': subid },
-            { '$set': { 'cb_id': msg_cb._id } })
-        M.Message.post(
-            self._state.data.subid, args=args, kwargs=kwargs)
-        raise exc.Suspend()
-
-    @slot()
-    def retire(self, result):
-        M.ActorState.m.update_partial(
-            { '_id': self.id },
-            { '$set': { 'result': bson.Binary(dumps(result)) } })
-        M.ActorState.m.remove( { '_id': self._state.data.subid } )
-        M.Message.post(
-            self._state.parent_id, 'retire_element',
-            args=(self._state.data.index,result))
-
-
+class Message(object): pass
+class Result(object): pass
+class GroupResult(Result): pass
