@@ -23,12 +23,9 @@ class CompositeActor(function.FunctionActor):
 
     @classmethod
     def create(
-        cls,
-        sub_actors,
-        args=None,
-        kwargs=None,
-        cb_id=None,
-        **options):
+        cls, sub_actors,
+        args=None, kwargs=None,
+        cb_id=None, **options):
         obj = super(CompositeActor, cls).create(
             args=args, kwargs=kwargs, cb_id=cb_id, **options)
         for i, sa in enumerate(sub_actors):
@@ -79,6 +76,7 @@ class Group(CompositeActor):
             new=True)
         el = _Element.create(
             self.id, self._state.data.num_sub-1, sub.id, **sub._state.options)
+        log.info('Append %r with sub %r', el, sub) 
         el.start()
 
     @slot()
@@ -178,5 +176,5 @@ class _Element(function.FunctionActor):
         M.Message.post(
             self._state.parent_id, 'retire_element',
             args=(self._state.data.index,result))
-        raise exc.Suspend()
+
 

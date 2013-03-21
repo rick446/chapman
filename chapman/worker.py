@@ -24,6 +24,7 @@ class Worker(object):
         self._raise_errors = raise_errors
         self._event_thread = None
         self._handler_threads = []
+        self._chan = M.Event.channel()
 
     def start(self):
         self._event_thread = threading.Thread(target=self.event)
@@ -38,21 +39,17 @@ class Worker(object):
         
     def event(self):
         log.info('Entering event thread')
+        @self._chan.sub('ping')
+        def handle_ping(chan, msg):
+            self._chan.pub('pong', self._name)
+        @self._chan.sub('kill')
+        def handle_kill(chan, msg):
+            if msg['data'] in (self._name, '*'):
+                log.error('Received %r, exiting', msg)
+                os._exit(0)
         while True:
-            try:
-                ev = M.Event.await(
-                    ('ping','kill'),
-                    timeout=None,
-                    sleep=self._sleep)
-                log.info('Got event %s', ev)
-                if ev.name == 'kill' and ev.value == self._name:
-                    log.error('... exiting')
-                    os._exit(0)
-                elif ev.name == 'ping':
-                    M.Event.publish('pong', None, self._name)
-            except Exception:
-                log.exception('Unexpected error in event thread')
-                time.sleep(1)
+            self._chan.handle_ready(await=True)
+            time.sleep(0.2)
 
     def _waitfunc(self):
         M.Event.await(

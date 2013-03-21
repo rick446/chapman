@@ -5,6 +5,7 @@ from datetime import datetime
 
 import bson
 
+from mongotools.pubsub import Channel
 from ming import Session, Field
 from ming import schema as S
 from ming.declarative import Document
@@ -13,61 +14,28 @@ log = logging.getLogger(__name__)
 
 doc_session = Session.by_name('chapman')
 
-class Sequence(Document):
-    class __mongometa__:
-        name = 'chapman.sequence'
-        session = doc_session
-    _id=Field(str)
-    _next=Field('next', int)
+class Event(object):
 
     @classmethod
-    def next(cls, name):
-        doc = cls.m.find_and_modify(
-            query={ '_id': name },
-            update={ '$inc': { 'next': 1 } },
-            upsert=True,
-            new=True)
-        return doc._next
-
-class Event(Document):
-    class __mongometa__:
-        name='chapman.event'
-        session = doc_session
-
-    _id=Field(int)
-    actor_id=Field(S.ObjectId, if_missing=None)
-    name=Field(str)
-    value=Field(None)
-    ts=Field(datetime, if_missing=datetime.utcnow)
+    def channel(self):
+        return Channel(doc_session.db, 'chapman.event')
 
     @classmethod
     def publish(cls, name, actor_id, value=None):
-        doc = cls.make(dict(
-                _id=Sequence.next('event'),
-                actor_id=actor_id,
-                name=name,
-                value=value))
-        doc.m.insert()
-        return doc
+        cls.channel().pub(name, dict(actor_id=actor_id, value=value))
 
     @classmethod
     def await(cls, event_names, timeout=None, sleep=1):
-        doc = Sequence.m.get(_id='event')
-        if doc: last = doc._next
-        else: last = 0
+        chan = cls.channel()
+        for n in event_names:
+            chan.sub(n, lambda *a,**kw:None)
         start = time.time()
         while True:
-            spec = { '_id': { '$gt': last } }
-            if event_names:
-                spec['name'] = { '$in': event_names }
-            q = cls.m.find(spec, tailable=True, await_data=True)
-            q = q.sort('$natural')
-            for ev in q:
+            for ev in chan.cursor(await=True):
                 return ev
             elapsed = time.time() - start
-            if timeout is not None:
-                if elapsed > timeout:
-                    return None
+            if timeout is not None and elapsed > timeout:
+                return None
             time.sleep(sleep)
 
 class Message(Document):
@@ -150,6 +118,9 @@ class Message(Document):
     @classmethod
     def post(cls, actor_id, slot='run', stat='ready',
              args=None, kwargs=None):
+        a = ActorState.m.get(_id=actor_id)
+        if a is None or a.status == 'complete':
+            import ipdb; ipdb.set_trace()
         obj = cls.create(actor_id, slot, stat, args, kwargs)
         obj.m.insert()
         Event.publish('send', actor_id)
@@ -240,7 +211,8 @@ class ActorState(Document):
         while cur.parent_id is not None:
             result.actor_id = cur._id
             cur = ActorState.m.get(_id=cur.parent_id)
-            if cur is None: break
+            if cur is None:
+                import ipdb; ipdb.set_trace()
             chain.append(cur)
         if cur is not None:
             result.actor_id = cur._id

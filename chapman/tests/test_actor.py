@@ -2,6 +2,7 @@ import bson
 import unittest
 
 import ming
+from mongotools import mim
 
 from chapman import Actor, FunctionActor, Worker
 from chapman import Group, Pipeline
@@ -12,9 +13,10 @@ from chapman import model as M
 class TestBasic(unittest.TestCase):
 
     def setUp(self):
-        ming.config.configure_from_nested_dict(dict(
-                chapman=dict(uri='mim://')))
-        ming.mim.Connection.get().clear_all()
+        M.doc_session.bind = ming.create_datastore(
+            'test', bind=ming.create_engine(
+                use_class=lambda *a,**kw: mim.Connection.get()))
+        mim.Connection.get().clear_all()
         self.worker = Worker('test', ['chapman'])
         self.doubler = FunctionActor.decorate('double')(self._double)
 
@@ -95,9 +97,10 @@ class TestBasic(unittest.TestCase):
 class TestCanvas(unittest.TestCase):
     
     def setUp(self):
-        ming.config.configure_from_nested_dict(dict(
-                chapman=dict(uri='mim://')))
-        ming.mim.Connection.get().clear_all()
+        M.doc_session.bind = ming.create_datastore(
+            'test', bind=ming.create_engine(
+                use_class=lambda *a,**kw: mim.Connection.get()))
+        mim.Connection.get().clear_all()
         self.worker = Worker('test', ['chapman'])
         self.doubler = FunctionActor.decorate('double')(self._double)
         self.fact = FunctionActor.decorate('fact')(self._fact)

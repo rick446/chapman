@@ -21,15 +21,17 @@ log = None
 
 def main(args):
     from chapman import model as M
-
-    with EventCapture('pong', verbose=True) as cap:
-        M.Event.publish('ping', None)
-        log.info('Sent ping')
-        time.sleep(10)
-    living_workers = set()
-    for ev in cap:
-        living_workers.add(ev.value)
-    living_workers = list(living_workers)
+    chan = M.Event.channel()
+    messages = []
+    # Thread to capture pongs
+    t = threading.Thread(target=target, args=(chan,messages))
+    t.setDaemon(True)
+    t.start()
+    chan.pub('ping')
+    log.info('Sending ping...')
+    time.sleep(10)
+    log.info('Responses: %r', messages)
+    living_workers = list(set(msg['data'] for msg in messages))
     dead_actors = set()
     for a in M.ActorState.m.collection.find(
         { 'status': 'busy',
@@ -39,16 +41,27 @@ def main(args):
         log.info('... found dead worker %s (%r)',
                  a['worker'], a)
     dead_actors = list(dead_actors)
-    r = M.Message.m.collection.update(
-        { 'aid': { '$in': dead_actors } },
-        { '$set': { 'stat': 'ready', 'wkr': None } },
-        multi=True)
-    log.info('Message unlock: %r', r)
-    r = M.ActorState.m.collection.update(
-        { '_id': { '$in': dead_actors } },
-        { '$set': { 'status': 'ready' } },
-        multi=True)
-    log.info('Actor unlock: %r', r)
+    if dead_actors:
+        r = M.Message.m.collection.update(
+            { 'aid': { '$in': dead_actors } },
+            { '$set': { 'stat': 'ready', 'wkr': None } },
+            multi=True)
+        log.info('Message unlock: %r', r)
+        r = M.ActorState.m.collection.update(
+            { '_id': { '$in': dead_actors } },
+            { '$set': { 'status': 'ready' } },
+            multi=True)
+        log.info('Actor unlock: %r', r)
+    else:
+        log.info('Nothing is dead, so not unlocking anything')
+
+def target(chan, messages):
+    @chan.sub('pong')
+    def handler(chan, msg):
+        messages.append(msg)
+    while True:
+        chan.handle_ready(raise_errors=True, await=True)
+        time.sleep(0.1)
 
 class EventCapture(object):
 
@@ -94,6 +107,8 @@ if __name__ == '__main__':
     logging.config.fileConfig(
         args['<config>'],
         defaults=dict(here=os.getcwd()))
-    bootstrap(args['<config>'])
     log = logging.getLogger('chapmand')
+    log.info('Begin bootstrap')
+    bootstrap(args['<config>'], options=dict(noweb='true'))
+    log.info('Bootstrap complete')
     main(args)
