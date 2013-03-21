@@ -85,11 +85,11 @@ class Worker(object):
             actor = ActorClass(doc)
             log.info('Worker got actor %r %s', actor, msg['slot'])
             yield msg, actor
-            msg.m.delete()
 
     def run_all(self, queue='chapman', waitfunc=None, raise_errors=False):
         for msg, actor in self.actor_iterator(queue, waitfunc):
             actor.handle(msg, raise_errors)
+            msg.m.delete()
             assert actor._state.status != 'busy', actor._state
             M.doc_session.bind.bind.conn.end_request()
 

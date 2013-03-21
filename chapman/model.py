@@ -265,7 +265,7 @@ class ActorState(Document):
         ActorState.m.update_partial(
             { '_id': self._id },
             { '$set': { 'status': new_status,
-                        'ts.suspend_%s' % new_status: datetime.utcnow()} } )
+                        'ts.unlock_%s' % new_status: datetime.utcnow()} } )
         self.status = new_status
 
     def update_data(self, **kwargs):
