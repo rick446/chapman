@@ -1,4 +1,5 @@
 import time
+import logging
 from cPickle import dumps, loads
 from datetime import datetime
 
@@ -7,6 +8,8 @@ import bson
 from ming import Session, Field
 from ming import schema as S
 from ming.declarative import Document
+
+log = logging.getLogger(__name__)
 
 doc_session = Session.by_name('chapman')
 
@@ -117,7 +120,9 @@ class Message(Document):
                 { '_id': msg.aid, 'status': 'ready' },
                 update={'$set': { 'status':'busy', 'worker': worker } },
                 new=True)
-            if astate is None: continue
+            if astate is None:
+                log.info('... could not lock actor, skipping to next message')
+                continue
             cls.m.update_partial(
                 { '_id': msg._id },
                 { '$set': {
@@ -207,9 +212,15 @@ class ActorState(Document):
             yield fmt % (
                 self._id, self.status, self.worker, actor)
             if cur.parent_id:
-                cur = ActorState.m.get(_id=cur.parent_id)
-                if cur is not None:
-                    for line in path_iter(cur, indent + '    '):
+                p = ActorState.m.get(_id=cur.parent_id)
+                if p is not None:
+                    for line in path_iter(p, indent + '-p- '):
+                        yield line
+            if cur.cb_id:
+                msg = Message.m.get(_id=cur.cb_id)
+                p = ActorState.m.get(_id=msg.aid)
+                if p is not None:
+                    for line in path_iter(p, indent + '-c- '):
                         yield line
         return '\n'.join(path_iter(self))
 
