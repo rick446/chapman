@@ -73,11 +73,12 @@ class Message(Document):
         session = doc_session
         indexes = [
             [ ('aid', 1) ],
-            [ ('q', 1),
-              ('stat', 1),
+            [ ('stat', 1),
               ('pri', -1),
               ('ts', 1),
-              ('actor_id', 1) ] ]
+              ('actor_id', 1),
+              ('q', 1),
+              ] ]
 
     _id = Field(S.ObjectId)
     aid = Field(S.ObjectId, if_missing=None)
