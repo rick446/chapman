@@ -13,6 +13,10 @@ class Task(object):
     def id(self):
         return self._state._id
 
+    @property
+    def result(self):
+        return self._state.result
+
     @classmethod
     def s(cls, **options):
         state = TaskState.make(dict(
@@ -71,9 +75,6 @@ class Task(object):
             self.forget()
         else:
             self.refresh()
-
-    def get(self):
-        return self._state.result.get()
 
     def forget(self):
         self._state.m.delete()

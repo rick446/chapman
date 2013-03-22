@@ -56,7 +56,7 @@ class TestBasic(unittest.TestCase):
         t = self.doubler.s()
         msg = t.start(2)
         t.handle(msg)
-        self.assertEqual(t.get(), 4)
+        self.assertEqual(t.result.get(), 4)
         self.assertEqual(M.Message.m.find().count(), 0)
         self.assertEqual(M.TaskState.m.find().count(), 1)
 
@@ -86,7 +86,7 @@ class TestBasic(unittest.TestCase):
         m,s = M.Message.reserve('foo', ['chapman'])
         t = Task.from_state(s)
         t.handle(m)
-        self.assertEqual(t.get(), 8)
+        self.assertEqual(t.result.get(), 8)
         self.assertEqual(M.Message.m.find().count(), 0)
         self.assertEqual(M.TaskState.m.find().count(), 1)
 
@@ -106,7 +106,7 @@ class TestBasic(unittest.TestCase):
         t.handle(m)
 
         with self.assertRaises(exc.TaskError):
-            t.get()
+            t.result.get()
         
     def test_run_message_callback_failed_not_immutable(self):
         @Function.decorate()
@@ -126,7 +126,7 @@ class TestBasic(unittest.TestCase):
         t.handle(m)
 
         with self.assertRaises(exc.TaskError) as te:
-            t.get()
+            t.result.get()
         self.assertEqual(te.exception.args[0], TypeError)
         
     def test_run_message_callback_immutable(self):
@@ -146,7 +146,7 @@ class TestBasic(unittest.TestCase):
         t = Task.from_state(s)
         t.handle(m)
 
-        self.assertEqual(t.get(), 42)
+        self.assertEqual(t.result.get(), 42)
         
             
         

@@ -33,7 +33,7 @@ class TestPipeline(unittest.TestCase):
         t.refresh()
         self.assertEqual(M.Message.m.find().count(), 0)
         self.assertEqual(M.TaskState.m.find().count(), 1)
-        self.assertEqual(t.get(), 8)
+        self.assertEqual(t.result.get(), 8)
 
     def test_2stage_err(self):
         t = Pipeline.s([
@@ -50,6 +50,6 @@ class TestPipeline(unittest.TestCase):
         self.assertEqual(M.Message.m.find().count(), 0)
         self.assertEqual(M.TaskState.m.find().count(), 1)
         with self.assertRaises(exc.TaskError) as err:
-            t.get()
+            t.result.get()
         self.assertEqual(err.exception.args[0], TypeError)
         

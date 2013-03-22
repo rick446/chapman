@@ -38,9 +38,17 @@ class GroupResult(Result):
     def __init__(self, task_id, sub_results):
         self.task_id = task_id
         self.sub_results = sub_results
+        if all(sr.status == 'success'
+               for sr in sub_results):
+            self.status = 'success'
+        else:
+            self.status = 'failure'
 
     def __repr__(self):
         return '<GroupResult for %s>' % (self.task_id)
+
+    def __getitem__(self, index):
+        return self.sub_results[index]
 
     def get(self):
         return [ sr.get() for sr in self.sub_results ]
