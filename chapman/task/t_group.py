@@ -6,12 +6,18 @@ from .t_composite import Composite
 class Group(Composite):
 
     @classmethod
-    def s(cls, subtasks, **options):
+    def s(cls, subtasks=None, **options):
+        if subtasks is None:
+            subtasks = []
         self = super(Group, cls).s(subtasks, **options)
         self._state.m.set({'data.n_waiting': len(subtasks)})
         return self
 
     def run(self, msg):
+        if self._state.data.n_waiting == 0:
+            return self.retire()
+        else:
+            self._state.m.set(dict(status='active'))
         for st_state in self.subtask_iter():
             st = self.from_state(st_state)
             st.start(*msg.args, **msg.kwargs)
@@ -21,7 +27,7 @@ class Group(Composite):
             { '_id': self.id },
             { '$inc': { 'data.n_waiting': -1 } })
         self.refresh()
-        if self._state.data.n_waiting == 0:
+        if self._state.data.n_waiting == 0 and self._state.status == 'active':
             self.retire()
 
     error = retire_subtask
@@ -44,7 +50,7 @@ class GroupResult(Result):
         else:
             self.status = 'failure'
 
-    def __repr__(self):
+    def __repr__(self): # pragma no cover
         return '<GroupResult for %s>' % (self.task_id)
 
     def __getitem__(self, index):

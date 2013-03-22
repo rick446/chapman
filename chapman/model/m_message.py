@@ -26,8 +26,8 @@ class Message(Document):
             w=S.String(if_missing=missing_worker)))
 
     def __repr__(self):
-        return '<msg (%s) %s to %s:%s on %s>' % (
-            self.schedule.status, self._id, self.task_repr, self.slot,
+        return '<msg (%s) %s to %s %s on %s>' % (
+            self.schedule.status, self._id, self.slot, self.task_repr, 
             self.schedule.w)
 
     @classmethod
@@ -63,7 +63,7 @@ class Message(Document):
         '''Reserves a message in 'ready' status.
 
         Ready messages must move through 'queued' status before they become
-        'active', since there may already be a message locking the task.
+        'busy', since there may already be a message locking the task.
         '''
         # Reserve message
         self = cls.m.find_and_modify(

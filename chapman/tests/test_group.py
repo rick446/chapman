@@ -1,39 +1,43 @@
-import unittest
-
-import ming
-from mongotools import mim
-
-from chapman.task import Task, Function, Group
+from chapman.task import Function, Group
 from chapman import model as M
 from chapman import exc
 
-class TestGroup(unittest.TestCase):
+from .test_base import TaskTest
 
-    def setUp(self):
-        M.doc_session.bind = ming.create_datastore(
-            'test', bind=ming.create_engine(
-                use_class=lambda *a,**kw: mim.Connection.get()))
-        mim.Connection.get().clear_all()
-        self.doubler = Function.decorate('double')(self._double)
-
-    def _double(self, x):
-        return x * 2
+class TestGroup(TaskTest):
 
     def test_two(self):
         t = Group.s([
             self.doubler.s(),
             self.doubler.s()])
         t.start(2)
-        while True:
-            m,s = M.Message.reserve('foo', ['chapman'])
-            if s is None: break
-            print 'Handling %s' % m
-            task = Task.from_state(s)
-            task.handle(m)
+        self._handle_messages()
         t.refresh()
         self.assertEqual(M.Message.m.find().count(), 0)
         self.assertEqual(M.TaskState.m.find().count(), 1)
         self.assertEqual(t.result.get(), [4,4])
+
+    def test_group_order_invert(self):
+        t = Group.s()
+        st0 = self.doubler.s()
+        st1 = self.doubler.s()
+        self.assertEqual(M.TaskState.m.find().count(), 3)
+        self.assertEqual(M.Message.m.find().count(), 0)
+        t.append(st0); 
+        t.append(st1); 
+        self.assertEqual(M.Message.m.find().count(), 2)
+        self.assertEqual(M.TaskState.m.find().count(), 3)
+        st0.start(2)
+        st1.start(3)        
+        self.assertEqual(M.Message.m.find().count(), 4)
+        self._handle_messages()
+        self.assertEqual(M.Message.m.find().count(), 0)
+        self.assertEqual(M.TaskState.m.find().count(), 3)
+        t.start()
+        self._handle_messages()
+        t.refresh()
+        self.assertEqual(M.Message.m.find().count(), 0)
+        self.assertEqual(t.result.get(), [4,6])
 
     def test_two_err(self):
         @Function.decorate('doubler_result')
@@ -44,12 +48,7 @@ class TestGroup(unittest.TestCase):
             self.doubler.s(),
             err.s()])
         t.start(2)
-        while True:
-            m,s = M.Message.reserve('foo', ['chapman'])
-            if s is None: break
-            print 'Handling %s' % m
-            task = Task.from_state(s)
-            task.handle(m)
+        self._handle_messages()
         t.refresh()
         self.assertEqual(M.Message.m.find().count(), 0)
         self.assertEqual(M.TaskState.m.find().count(), 1)
@@ -60,3 +59,34 @@ class TestGroup(unittest.TestCase):
         with self.assertRaises(exc.TaskError) as err:
             t.result.get()
         self.assertEqual(err.exception.args[0], TypeError)
+        self.assertEqual(M.Message.m.find().count(), 0)
+        self.assertEqual(M.TaskState.m.find().count(), 1)
+
+    def test_enqueue_while_busy(self):
+        t = Group.s([
+            self.doubler.s(),
+            self.doubler.s()])
+        t.start(2)
+        m_start_group, s = self._reserve_message()
+        self._handle_message(m_start_group, s)
+        m0, s0 = self._reserve_message()
+        m1, s1 = self._reserve_message()
+        self.assertEqual(m0.slot, 'run')
+        self.assertEqual(m1.slot, 'run')
+        self._handle_message(m0, s0)
+        self._handle_message(m1, s1)
+        m0, s0 = self._reserve_message()
+        m1, s1 = self._reserve_message()
+        self.assertEqual(m0.slot, 'retire_subtask')
+        self.assertEqual(m1.slot, 'retire_subtask')
+        self.assertIsNotNone(s0)
+        self.assertIsNone(s1)
+        self.assertEqual([m0._id, m1._id], M.TaskState.m.get(_id=s0._id).mq)
+        self._handle_message(m0, s0)
+        self.assertEqual([m1._id], M.TaskState.m.get(_id=s0._id).mq)
+        m, s = self._reserve_message()
+        self.assertEqual(m.slot, 'retire_subtask')
+        self.assertIsNotNone(s)
+        self._handle_message(m, s)
+        t.refresh()
+        self.assertEqual([4,4], t.result.get())

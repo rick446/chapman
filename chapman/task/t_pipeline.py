@@ -5,6 +5,7 @@ from .t_composite import Composite
 class Pipeline(Composite):
 
     def run(self, msg):
+        self._state.m.set(dict(status='active'))
         for st_state in self.subtask_iter():
             st = self.from_state(st_state)
             st.start(*msg.args, **msg.kwargs)

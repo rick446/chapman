@@ -1,6 +1,11 @@
+import logging
+
+from chapman.context import g
 from chapman.meta import RegistryMetaclass
 from chapman.model import TaskState, Message
 from chapman import exc
+
+log = logging.getLogger(__name__)
 
 class Task(object):
     __metaclass__ = RegistryMetaclass
@@ -80,9 +85,13 @@ class Task(object):
         self._state.m.delete()
 
     def handle(self, msg):
-        method = getattr(self, msg.slot)
-        method(msg)
-        msg.retire()
+        with g.set_context(self, msg):
+            if self._state.status == 'complete': # pragma no cover
+                log.warning('Ignoring message to complete task: %r', msg)
+            else:
+                method = getattr(self, msg.slot)
+                method(msg)
+            msg.retire()
 
 class Result(object):
 

@@ -18,7 +18,7 @@ class TaskError(ChapmanError):
         lines = [ '<TaskError>, original exception follows:' ]
         try:
             lines += list(self.format())
-        except:
+        except: # pragma no cover
             lines.append('... could not print original exception')
         return '\n'.join(lines)
 

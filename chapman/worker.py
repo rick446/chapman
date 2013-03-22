@@ -7,7 +7,7 @@ import logging
 import threading
 
 import model as M
-from .actor import Actor
+from .task import Task
 
 log = logging.getLogger(__name__)
 

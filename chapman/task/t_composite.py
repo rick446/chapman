@@ -5,9 +5,14 @@ from .t_base import Task
 class Composite(Task):
 
     @classmethod
-    def s(cls, subtasks, **options):
+    def s(cls, subtasks=None, **options):
+        if subtasks is None: subtasks = []
         self = super(Composite, cls).s(**options)
-        self._state.m.set({'data.n_subtask': 0})
+        self._state.m.set(
+            { 'status': 'pending',
+              'data.n_subtask': 0,
+              'data.n_waiting': 0,
+              })
         for st in subtasks:
             self.append(st)
         return self
@@ -20,7 +25,13 @@ class Composite(Task):
                 'data.composite_position': position,
                 'options.preserve_result': True,
                 })
-        self._state.m.set({'data.n_subtask': position+1})
+        M.TaskState.m.update_partial(
+            { '_id': self.id },
+            { '$inc': {
+                    'data.n_subtask': 1,
+                    'data.n_waiting': 1 } } )
+        self._state.data.n_subtask += 1
+        self._state.data.n_waiting += 1
 
     def subtask_iter(self):
         q = M.TaskState.m.find({'parent_id': self.id })

@@ -1,11 +1,13 @@
 import sys
 
 from chapman import exc
+from chapman import model as M
 
 from .t_base import Task, Result
 
 class Function(Task):
     target=None
+    raise_errors=False
     options=None
 
     @classmethod
@@ -22,7 +24,7 @@ class Function(Task):
             self.__class__.__name__,
             self._state._id)
 
-    def run(self, msg, raise_errors=False):
+    def run(self, msg):
         try:
             if self._state.options.immutable:
                 raw = self.target()
@@ -30,12 +32,10 @@ class Function(Task):
                 raw = self.target(*msg.args, **msg.kwargs)
             result = Result.success(self._state._id, raw)
             self.complete(result)
-        except exc.Suspend:
-            Task.m.update_partial(
-                { '_id': self._id },
-                { '$set': { 'status': 'suspended' } } )
+        except exc.Suspend, s:
+            self._state.m.set(dict(status=s.status))
         except Exception:
-            if raise_errors:
+            if self.raise_errors:
                 raise
             result = Result.failure(
                 self._state._id, 'Error in %r' % self, *sys.exc_info())
@@ -50,19 +50,21 @@ class Function(Task):
                     func.__module__, func.__name__)
             else:
                 n = name
-            return FunctionTaskWrapper(
-                '%s(%s)' % (cls.__name__, func.__name__),
-                (cls,),
-                dict(
-                    target=staticmethod(func),
-                    name=n,
-                    options=options))
+            return FunctionTaskWrapper(n, func, options)
         return decorator
 
 class FunctionTaskWrapper(object):
 
-    def __init__(self, name, bases, dct):
-        self._cls = type(name, bases, dct)
+    def __init__(self, name, target, options):
+        class_name = 'FunctionTask<%s>' % name
+        bases = (Function,)
+        dct = dict(
+            target=staticmethod(target),
+            name=name,
+            options=options)
+        if 'raise_errors' in options:
+            dct['raise_errors'] = options.pop('raise_errors')
+        self._cls = type(class_name, bases, dct)
 
     def __getattr__(self, name):
         return getattr(self._cls, name)

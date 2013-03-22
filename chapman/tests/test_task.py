@@ -1,23 +1,10 @@
-import unittest
-
-import ming
-from mongotools import mim
-
 from chapman.task import Task, Function
 from chapman import model as M
 from chapman import exc
 
-class TestBasic(unittest.TestCase):
+from .test_base import TaskTest
 
-    def setUp(self):
-        M.doc_session.bind = ming.create_datastore(
-            'test', bind=ming.create_engine(
-                use_class=lambda *a,**kw: mim.Connection.get()))
-        mim.Connection.get().clear_all()
-        self.doubler = Function.decorate('double')(self._double)
-
-    def _double(self, x):
-        return x * 2
+class TestBasic(TaskTest):
 
     def test_abstract_task(self):
         t = Task.s()
@@ -59,6 +46,17 @@ class TestBasic(unittest.TestCase):
         self.assertEqual(t.result.get(), 4)
         self.assertEqual(M.Message.m.find().count(), 0)
         self.assertEqual(M.TaskState.m.find().count(), 1)
+
+    def test_run_message_error(self):
+        t = self.doubler.s()
+        msg = t.start(None)
+        t.handle(msg)
+        self.assertEqual(M.Message.m.find().count(), 0)
+        self.assertEqual(M.TaskState.m.find().count(), 1)
+        with self.assertRaises(exc.TaskError) as err:
+            t.result.get()
+        assert 'TypeError' in repr(err.exception)
+        self.assertEqual(err.exception.args[0], TypeError)
 
     def test_ignore_result(self):
         t = self.doubler.s(ignore_result=True)
