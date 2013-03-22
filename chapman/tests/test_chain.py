@@ -1,4 +1,4 @@
-from chapman.task import Function, Group, Chain
+from chapman.task import Function, Chain
 from chapman import model as M
 from chapman import exc
 

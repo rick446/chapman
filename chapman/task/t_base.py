@@ -43,6 +43,17 @@ class Task(object):
         Class = cls.by_name(state.type)
         return Class(state)
 
+    def set_options(self, **kwargs):
+        updates = dict(
+            ('options.' + k, v)
+            for k,v in kwargs.items())
+        self._state.m.set(updates)
+
+    def schedule_options(self):
+        return dict(
+            q=self._state.options.queue,
+            pri=self._state.options.priority)
+
     def refresh(self):
         self._state = TaskState.m.get(_id=self.id)
 
@@ -55,7 +66,7 @@ class Task(object):
 
     def start(self, *args, **kwargs):
         '''Send a 'run' message & update state'''
-        msg = Message.n(self, 'run', *args, **kwargs)
+        msg = Message.new(self, 'run', args, kwargs)
         msg.send()
         return msg
 

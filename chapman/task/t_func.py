@@ -31,6 +31,11 @@ class Function(Task):
                     kwargs=M.dumps(kwargs))
         return super(Function, cls).new(data, **all_options)
 
+    @classmethod
+    def spawn(cls, *args, **kwargs):
+        self = cls.new(args, kwargs)
+        self.start()
+
     def __repr__(self):
         return '<%s %s>' % (
             self.__class__.__name__,

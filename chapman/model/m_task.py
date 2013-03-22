@@ -16,6 +16,8 @@ class TaskState(Document):
     _result=Field('result', S.Binary)
     data=Field({str:None})
     options=Field(dict(
+            queue=S.String(if_missing='chapman'),
+            priority=S.Int(if_missing=10),
             immutable=S.Bool(if_missing=False),
             ignore_result=S.Bool(if_missing=False),
             preserve_result=S.Bool(if_missing=False), # keep even if linked

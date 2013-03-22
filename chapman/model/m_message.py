@@ -65,7 +65,8 @@ class Message(Document):
         self = cls.make(dict(
                 task_id=task.id,
                 task_repr=repr(task),
-                slot=slot))
+                slot=slot,
+                s=task.schedule_options()))
         self.args = args
         self.kwargs = kwargs
         self.m.insert()
