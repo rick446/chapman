@@ -38,10 +38,8 @@ class Function(Task):
 
     def run(self, msg):
         try:
-            if self._state.options.immutable:
-                raw = self.target()
-            else:
-                raw = self.target(*msg.args, **msg.kwargs)
+            args, kwargs = self._merge_args(msg)
+            raw = self.target(*args, **kwargs)
             result = Result.success(self._state._id, raw)
             self.complete(result)
         except exc.Suspend, s:
@@ -52,6 +50,18 @@ class Function(Task):
             result = Result.failure(
                 self._state._id, 'Error in %r' % self, *sys.exc_info())
             self.complete(result)
+
+    def _merge_args(self, msg):
+        '''Compute the *args and **kwargs based on the args and kwargs stored in
+        the TaskState, possibly prepended (in the case of *args) or overridden
+        (in the case of **kwargs) by msg
+        '''
+        args = M.loads(self._state.data.args)
+        kwargs = M.loads(self._state.data.kwargs)
+        if not self._state.options.immutable:
+            args = msg.args + args
+            kwargs.update(msg.kwargs)
+        return args, kwargs
             
     @classmethod
     def decorate(cls, name=None, **options):

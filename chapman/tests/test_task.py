@@ -7,6 +7,13 @@ from .test_base import TaskTest
 
 class TestBasic(TaskTest):
 
+    def test_curry(self):
+        t = self.doubler.n(4)
+        t.start()
+        self._handle_messages()
+        t.refresh()
+        self.assertEqual(8, t.result.get())
+
     def test_abstract_task(self):
         t = Task.new({})
         with self.assertRaises(NotImplementedError):
@@ -115,45 +122,25 @@ class TestBasic(TaskTest):
             t.result.get()
         
     def test_run_message_callback_failed_not_immutable(self):
-        @Function.decorate()
-        def nothing():
-            pass
         t0 = self.doubler.n()
-        t1 = nothing.n()
+        t1 = self.doubler.n(4)
         t0.link(t1, 'run')
         t0.start(1)
-        
-        m,s = M.Message.reserve('foo', ['chapman'])
-        t = Task.from_state(s)
-        t.handle(m)
 
-        m,s = M.Message.reserve('foo', ['chapman'])
-        t = Task.from_state(s)
-        t.handle(m)
+        self._handle_messages()
+        t1.refresh()
 
         with self.assertRaises(exc.TaskError) as te:
-            t.result.get()
+            t1.result.get()
         self.assertEqual(te.exception.args[0], TypeError)
         
     def test_run_message_callback_immutable(self):
-        @Function.decorate(immutable=True)
-        def nothing():
-            return 42
         t0 = self.doubler.n()
-        t1 = nothing.n()
+        t1 = self.doubler.ni(14)
         t0.link(t1, 'run')
         t0.start(1)
         
-        m,s = M.Message.reserve('foo', ['chapman'])
-        t = Task.from_state(s)
-        t.handle(m)
+        self._handle_messages()
+        t1.refresh()
 
-        m,s = M.Message.reserve('foo', ['chapman'])
-        t = Task.from_state(s)
-        t.handle(m)
-
-        self.assertEqual(t.result.get(), 42)
-        
-            
-        
-        
+        self.assertEqual(t1.result.get(), 28)
