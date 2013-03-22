@@ -72,7 +72,7 @@ class Message(Document):
             sort=[('s.pri', -1), ('s.ts', 1) ],
             update={'$set': { 's.w': worker, 's.status': 'queued' } },
             new=True)
-        if self is None: return None
+        if self is None: return None, None
         # Enqueue on TaskState
         state = TaskState.m.find_and_modify(
             { '_id': self.task_id },

@@ -1,4 +1,3 @@
-import bson
 import unittest
 
 import ming
@@ -71,8 +70,11 @@ class TestBasic(unittest.TestCase):
         self.assertEqual(0, M.TaskState.m.find().count())
         
     def test_run_message_callback(self):
+        @Function.decorate('doubler_result')
+        def doubler_result(result):
+            return result.get() * 2
         t0 = self.doubler.s()
-        t1 = self.doubler.s()
+        t1 = doubler_result.s()
         t0.link(t1, 'run')
         t0.start(2)
         self.assertEqual(2, M.Message.m.find().count())

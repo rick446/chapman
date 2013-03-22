@@ -26,10 +26,16 @@ class Task(object):
         Class = cls.by_name(state.type)
         return Class(state)
 
+    @classmethod
+    def by_id(cls, id):
+        state = TaskState.m.get(_id=id)
+        Class = cls.by_name(state.type)
+        return Class(state)
+
     def refresh(self):
         self._state = TaskState.m.get(_id=self.id)
 
-    def run(self, msg):
+    def run(self, msg, raise_errors=False):
         '''Do the work of the task'''
         raise NotImplementedError, 'run'
 
@@ -49,23 +55,28 @@ class Task(object):
         return msg
 
     def complete(self, result):
+        TaskState.set_result(self.id, result)
         if self._state.on_complete:
             msg = Message.m.get(_id=self._state.on_complete)
             if result.status == 'success':
-                msg.send(result.get())
+                msg.send(result)
             else:
                 msg.m.set(dict(slot='error'))
                 msg.send(result)
-            self._state.m.delete()
+            if not self._state.options.preserve_result:
+                self.forget()
         elif ( self._state.options.ignore_result
+               and not self._state.options.preserve_result
                and result.status == 'success'):
-            self._state.m.delete()
+            self.forget()
         else:
-            TaskState.set_result(self.id, result)
             self.refresh()
 
     def get(self):
         return self._state.result.get()
+
+    def forget(self):
+        self._state.m.delete()
 
     def handle(self, msg):
         method = getattr(self, msg.slot)
@@ -79,7 +90,7 @@ class Result(object):
         self.status = status
         self.data = data
 
-    def __repr__(self):
+    def __repr__(self): # pragma no cover
         return '<Result %s for %s>' % (
             self.status, self.task_id)
 
@@ -99,6 +110,6 @@ class Result(object):
             return self.data
         elif self.status == 'failure':
             raise self.data
-        else:
+        else: # pragma no cover
             assert False
 

@@ -67,7 +67,7 @@ class FunctionTaskWrapper(object):
     def __getattr__(self, name):
         return getattr(self._cls, name)
 
-    def __repr__(self):
+    def __repr__(self): # pragma no cover
         return '<Wrapper %s>' % (self._cls.__name__)
 
     def __call__(self, *args, **kwargs):

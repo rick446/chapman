@@ -14,10 +14,12 @@ class TaskState(Document):
     parent_id=Field(S.ObjectId, if_missing=None)
     status=Field(str)
     _result=Field('result', S.Binary)
-    data=Field(None)
+    data=Field({str:None})
     options=Field(dict(
             immutable=S.Bool(if_missing=False),
-            ignore_result=S.Bool(if_missing=False)))
+            ignore_result=S.Bool(if_missing=False),
+            preserve_result=S.Bool(if_missing=False), # keep even if linked
+            ))
     on_complete=Field(S.ObjectId, if_missing=None)
     mq=Field([S.ObjectId()])
 
