@@ -5,14 +5,14 @@ from .t_base import Task
 class Composite(Task):
 
     @classmethod
-    def s(cls, subtasks=None, **options):
-        if subtasks is None: subtasks = []
-        self = super(Composite, cls).s(**options)
-        self._state.m.set(
-            { 'status': 'pending',
-              'data.n_subtask': 0,
-              'data.n_waiting': 0,
-              })
+    def n(cls, *subtasks):
+        return cls.new(subtasks)
+
+    @classmethod
+    def new(cls, subtasks, **options):
+        self = super(Composite, cls).new(
+            dict(n_subtask=0, n_waiting=0),
+            'pending', **options)
         for st in subtasks:
             self.append(st)
         return self

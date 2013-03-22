@@ -54,7 +54,14 @@ class Message(Document):
             self.schedule.w)
 
     @classmethod
-    def s(cls, task, slot, *args, **kwargs):
+    def n(cls, task, slot, *args, **kwargs):
+        '''Convenience method for Message.new'''
+        return cls.new(task, slot, args, kwargs)
+
+    @classmethod
+    def new(cls, task, slot, args, kwargs):
+        if args is None: args = ()
+        if kwargs is None: kwargs = {}
         self = cls.make(dict(
                 task_id=task.id,
                 task_repr=repr(task),

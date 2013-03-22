@@ -7,9 +7,9 @@ from .test_base import TaskTest
 class TestPipeline(TaskTest):
 
     def test_2stage(self):
-        t = Pipeline.s([
-            self.doubler.s(),
-            self.doubler.s()])
+        t = Pipeline.n(
+            self.doubler.n(),
+            self.doubler.n())
         t.start(2)
         self._handle_messages()
         t.refresh()
@@ -18,9 +18,9 @@ class TestPipeline(TaskTest):
         self.assertEqual(t.result.get(), 8)
 
     def test_2stage_err(self):
-        t = Pipeline.s([
-            self.doubler.s(),
-            self.doubler.s()])
+        t = Pipeline.n(
+            self.doubler.n(),
+            self.doubler.n())
         t.start(None)
         self._handle_messages()
         t.refresh()

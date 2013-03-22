@@ -23,10 +23,12 @@ class Task(object):
         return self._state.result
 
     @classmethod
-    def s(cls, **options):
+    def new(cls, data, status='active', **options):
         state = TaskState.make(dict(
-                type=cls.name, status='active',
-                options=options))
+                type=cls.name,
+                status=status,
+                options=options,
+                data=data))
         state.m.insert()
         return cls(state)
 
@@ -53,13 +55,13 @@ class Task(object):
 
     def start(self, *args, **kwargs):
         '''Send a 'run' message & update state'''
-        msg = Message.s(self, 'run', *args, **kwargs)
+        msg = Message.n(self, 'run', *args, **kwargs)
         msg.send()
         return msg
 
     def link(self, task, slot, *args, **kwargs):
         '''Add an on_complete message with the given args'''
-        msg = Message.s(task, slot, *args, **kwargs)
+        msg = Message.n(task, slot, *args, **kwargs)
         self._state.m.set(dict(on_complete=msg._id))
         return msg
 

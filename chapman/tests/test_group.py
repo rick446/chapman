@@ -7,9 +7,9 @@ from .test_base import TaskTest
 class TestGroup(TaskTest):
 
     def test_two(self):
-        t = Group.s([
-            self.doubler.s(),
-            self.doubler.s()])
+        t = Group.n(
+            self.doubler.n(),
+            self.doubler.n())
         t.start(2)
         self._handle_messages()
         t.refresh()
@@ -18,9 +18,9 @@ class TestGroup(TaskTest):
         self.assertEqual(t.result.get(), [4,4])
 
     def test_group_order_invert(self):
-        t = Group.s()
-        st0 = self.doubler.s()
-        st1 = self.doubler.s()
+        t = Group.n()
+        st0 = self.doubler.n()
+        st1 = self.doubler.n()
         self.assertEqual(M.TaskState.m.find().count(), 3)
         self.assertEqual(M.Message.m.find().count(), 0)
         t.append(st0); 
@@ -43,10 +43,10 @@ class TestGroup(TaskTest):
         @Function.decorate('doubler_result')
         def err(x):
             raise TypeError, 'Always raises error'
-        t = Group.s([
-            self.doubler.s(),
-            self.doubler.s(),
-            err.s()])
+        t = Group.n(
+            self.doubler.n(),
+            self.doubler.n(),
+            err.n())
         t.start(2)
         self._handle_messages()
         t.refresh()
@@ -63,9 +63,9 @@ class TestGroup(TaskTest):
         self.assertEqual(M.TaskState.m.find().count(), 1)
 
     def test_enqueue_while_busy(self):
-        t = Group.s([
-            self.doubler.s(),
-            self.doubler.s()])
+        t = Group.n(
+            self.doubler.n(),
+            self.doubler.n())
         t.start(2)
         m_start_group, s = self._reserve_message()
         self._handle_message(m_start_group, s)

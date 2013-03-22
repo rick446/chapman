@@ -8,7 +8,7 @@ from .test_base import TaskTest
 class TestBasic(TaskTest):
 
     def test_abstract_task(self):
-        t = Task.s()
+        t = Task.new({})
         with self.assertRaises(NotImplementedError):
             t.run(None)
 
@@ -16,7 +16,7 @@ class TestBasic(TaskTest):
         self.assertEqual(4, self.doubler(2))
 
     def test_create_task(self):
-        self.doubler.s()
+        self.doubler.n()
         self.assertEqual(1, M.TaskState.m.find().count())
 
     def test_deco_task(self):
@@ -27,8 +27,8 @@ class TestBasic(TaskTest):
         self.assertIsInstance(foo, FunctionTaskWrapper)
 
     def test_create_message(self):
-        t = self.doubler.s()
-        msg = M.Message.s(t, 'run', 1, 2, a=3)
+        t = self.doubler.n()
+        msg = M.Message.n(t, 'run', 1, 2, a=3)
         self.assertEqual(msg.task_id, t.id)
         self.assertEqual(msg.task_repr, repr(t))
         self.assertEqual(msg.schedule.status, 'pending')
@@ -38,7 +38,7 @@ class TestBasic(TaskTest):
         self.assertEqual(1, M.Message.m.find().count())
         
     def test_start(self):
-        t = self.doubler.s()
+        t = self.doubler.n()
         msg = t.start(2)
         self.assertEqual(msg.task_id, t.id)
         self.assertEqual(msg.schedule.status, 'ready')
@@ -48,7 +48,7 @@ class TestBasic(TaskTest):
         self.assertEqual(1, M.Message.m.find().count())
 
     def test_run_message(self):
-        t = self.doubler.s()
+        t = self.doubler.n()
         msg = t.start(2)
         t.handle(msg)
         self.assertEqual(t.result.get(), 4)
@@ -56,7 +56,7 @@ class TestBasic(TaskTest):
         self.assertEqual(M.TaskState.m.find().count(), 1)
 
     def test_run_message_error(self):
-        t = self.doubler.s()
+        t = self.doubler.n()
         msg = t.start(None)
         t.handle(msg)
         self.assertEqual(M.Message.m.find().count(), 0)
@@ -67,7 +67,7 @@ class TestBasic(TaskTest):
         self.assertEqual(err.exception.args[0], TypeError)
 
     def test_ignore_result(self):
-        t = self.doubler.s(ignore_result=True)
+        t = self.doubler.new(ignore_result=True)
         msg = t.start(2)
         self.assertEqual(1, M.Message.m.find().count())
         self.assertEqual(1, M.TaskState.m.find().count())
@@ -79,8 +79,8 @@ class TestBasic(TaskTest):
         @Function.decorate('doubler_result')
         def doubler_result(result):
             return result.get() * 2
-        t0 = self.doubler.s()
-        t1 = doubler_result.s()
+        t0 = self.doubler.n()
+        t1 = doubler_result.n()
         t0.link(t1, 'run')
         t0.start(2)
         self.assertEqual(2, M.Message.m.find().count())
@@ -97,8 +97,8 @@ class TestBasic(TaskTest):
         self.assertEqual(M.TaskState.m.find().count(), 1)
 
     def test_run_message_callback_error(self):
-        t0 = self.doubler.s()
-        t1 = self.doubler.s()
+        t0 = self.doubler.n()
+        t1 = self.doubler.n()
         t0.link(t1, 'run')
         t0.start(None)
         self.assertEqual(2, M.Message.m.find().count())
@@ -118,8 +118,8 @@ class TestBasic(TaskTest):
         @Function.decorate()
         def nothing():
             pass
-        t0 = self.doubler.s()
-        t1 = nothing.s()
+        t0 = self.doubler.n()
+        t1 = nothing.n()
         t0.link(t1, 'run')
         t0.start(1)
         
@@ -139,8 +139,8 @@ class TestBasic(TaskTest):
         @Function.decorate(immutable=True)
         def nothing():
             return 42
-        t0 = self.doubler.s()
-        t1 = nothing.s()
+        t0 = self.doubler.n()
+        t1 = nothing.n()
         t0.link(t1, 'run')
         t0.start(1)
         

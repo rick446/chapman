@@ -5,14 +5,6 @@ from .t_composite import Composite
 
 class Group(Composite):
 
-    @classmethod
-    def s(cls, subtasks=None, **options):
-        if subtasks is None:
-            subtasks = []
-        self = super(Group, cls).s(subtasks, **options)
-        self._state.m.set({'data.n_waiting': len(subtasks)})
-        return self
-
     def run(self, msg):
         if self._state.data.n_waiting == 0:
             return self.retire()

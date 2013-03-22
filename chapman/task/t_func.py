@@ -11,13 +11,25 @@ class Function(Task):
     options=None
 
     @classmethod
-    def s(cls, **options):
+    def n(cls, *args, **kwargs):
+        return cls.new(args, kwargs)
+
+    @classmethod
+    def ni(cls, *args, **kwargs):
+        return cls.new(args, kwargs, immutable=True)
+
+    @classmethod
+    def new(cls, args=(), kwargs=None, **options):
+        if kwargs is None:
+            kwargs = {}
         if cls.options:
             all_options = dict(cls.options)
         else:
             all_options = {}
         all_options.update(options)
-        return super(Function, cls).s(**all_options)
+        data = dict(args=M.dumps(args),
+                    kwargs=M.dumps(kwargs))
+        return super(Function, cls).new(data, **all_options)
 
     def __repr__(self):
         return '<%s %s>' % (

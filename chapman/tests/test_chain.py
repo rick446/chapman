@@ -11,9 +11,9 @@ class TestChain(TaskTest):
         def fact(n, acc=1):
             print 'fact(%s, %s)' % (n, acc)
             if n > 1:
-                raise Chain.call(fact.s(), n-1, n*acc)
+                raise Chain.call(fact.n(), n-1, n*acc)
             return acc
-        t = fact.s()
+        t = fact.n()
         t.start(5)
         self._handle_messages()
         t.refresh()
@@ -28,10 +28,10 @@ class TestChain(TaskTest):
             if n == 2:
                 raise TypeError, 'fact'
             elif n > 1:
-                raise Chain.call(fact_err.s(), n-1, n*acc)
+                raise Chain.call(fact_err.n(), n-1, n*acc)
             else:
                 return acc
-        t = fact_err.s()
+        t = fact_err.n()
         t.start(5)
         self._handle_messages()
         t.refresh()

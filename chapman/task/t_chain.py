@@ -8,7 +8,7 @@ class Chain(Composite):
 
     @classmethod
     def call(cls, subtask, *args, **kwargs):
-        self = cls.s([subtask])
+        self = cls.n(subtask)
         self._state.m.set(dict(
                 parent_id=g.task.id,
                 status='active'))
