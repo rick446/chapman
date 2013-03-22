@@ -1,10 +1,10 @@
 import traceback
 
-__all__ = ('ActorError',)
+__all__ = ('TaskError',)
 
 class ChapmanError(Exception): pass
 
-class ActorError(ChapmanError):
+class TaskError(ChapmanError):
     @classmethod
     def from_exc_info(cls, message, ex_type, ex_value, ex_tb):
         tb = traceback.format_exception(ex_type, ex_value, ex_tb)
@@ -15,7 +15,7 @@ class ActorError(ChapmanError):
         return self
 
     def __repr__(self):
-        lines = [ '<ActorError>, original exception follows:' ]
+        lines = [ '<TaskError>, original exception follows:' ]
         try:
             lines += list(self.format())
         except:

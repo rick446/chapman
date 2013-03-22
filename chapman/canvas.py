@@ -2,41 +2,6 @@ from ming import Session, Field
 from ming import schema as S
 from ming.declarative import Document
 
-class Task(Document):
-
-    def __init__(self, id):
-        self._id = id
-    
-    def run(self, msg):
-        '''Do the work of the task'''
-        raise NotImplementedError, 'run'
-
-    def start(self, *args, **kwargs):
-        '''Set the task to ready status and send a 'run' message'''
-        TaskState.m.update_partial(
-            { '_id': self._id },
-            { '$set': { 'status': 'ready' } } )
-        msg = Message.s(self._id, 'run', *args, **kwargs)
-        msg.post()
-
-    @classmethod
-    def s(cls):
-        return cls()
-
-    def complete(self, result):
-        doc = Task.m.get(_id=self._id)
-        if doc.on_complete:
-            msg = Message.m.get(_id=doc.on_complete)
-            msg.post()
-            self.m.delete()
-        elif doc.ignore_result:
-            self.m.delete()
-        else:
-            Task.m.update_partial(
-                { '_id': self._id },
-                { '$set': { 'result': result,
-                            'status': 'complete' } } )
-
 class Group(Task):
 
     @classmethod
@@ -103,6 +68,4 @@ class _El(Task):
         group.retire()
         self.complete()
 
-class Message(object): pass
-class Result(object): pass
 class GroupResult(Result): pass

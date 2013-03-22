@@ -15,3 +15,8 @@ def actor(name=None, **options):
     def decorator(func):
         return FunctionActor.decorate(name, **options)(func)
     return decorator
+
+def task(name=None):
+    from chapman.task import Function
+    return Function.decorate(name)
+    

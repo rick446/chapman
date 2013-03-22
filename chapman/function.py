@@ -28,12 +28,14 @@ class FunctionActor(Actor):
                     func.__module__, func.__name__)
             else:
                 name = actor_name
-            return type(
+            Class = type(
                 '%s(%s)' % (cls.__name__, func.__name__),
                 (cls,),
                 { 'target': staticmethod(func),
                   'name': name,
                   '_options': dict(options) })
+            
+            return FunctionTaskWrapper(Class)
         return decorator
 
     def curry(self, *args, **kwargs):
