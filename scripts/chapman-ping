@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """Usage:
-        chapman-ping <config> [options]
+        chapman-ping <config> [<name>] [options]
 
 Options:
   -h --help                 show this help message and exit
@@ -10,6 +10,7 @@ import time
 import socket
 import logging
 import threading
+from datetime import datetime
 
 from docopt import docopt
 from pyramid.paster import bootstrap, setup_logging
@@ -18,29 +19,35 @@ log = None
 
 def main(args):
     from chapman import model as M
-    responses = []
-    chan = M.Event.channel()
-    t = threading.Thread(target=target, args=(chan,))
+    t = threading.Thread(target=target)
     t.setDaemon(True)
     t.start()
     log.info('Starting ping...')
+    chan = M.Message.channel.new_channel()
+    if args['<name>'] is None:
+        worker = '*'
+    else:
+        worker = args['<name>']
     while True:
-        chan.pub('ping')
+        chan.pub('ping', {'ts_ping': datetime.utcnow(),
+                          'worker': worker } )
         time.sleep(1)
 
-def target(chan):
+def target():
+    from chapman import model as M
+    chan = M.Message.channel.new_channel()
     @chan.sub('pong')
     def handler(chan, msg):
-        log.info('pong: %s', msg['data'])
+        now = datetime.utcnow()
+        data = msg['data']
+        elapsed = now - data['ts_ping']
+        log.info('%s: %.1fms', data['worker'], 1000 * elapsed.total_seconds())
     while True:
         chan.handle_ready(raise_errors=True, await=True)
         time.sleep(0.1)
 
 if __name__ == '__main__':
     args = docopt(__doc__)
-    # logging.config.fileConfig(
-    #     args['<config>'],
-    #     defaults=dict(here=os.getcwd()))
     setup_logging(args['<config>'])
     bootstrap(args['<config>'], options=dict(noweb='true'))
     log = logging.getLogger('chapmand')

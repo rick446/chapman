@@ -1,7 +1,7 @@
 __all__ = (
     'Worker',
     )
-import os
+import sys
 import time
 import logging
 import threading
@@ -14,12 +14,11 @@ log = logging.getLogger(__name__)
 class Worker(object):
 
     def __init__(self, name, queues,
-                 num_threads=1, timeout=1, sleep=1,
+                 num_threads=1, sleep=1,
                  raise_errors=False):
         self._name = name
         self._queues = queues
         self._num_threads = num_threads
-        self._timeout = timeout
         self._sleep = sleep
         Function.raise_errors = raise_errors
         self._handler_threads = []
@@ -37,14 +36,17 @@ class Worker(object):
         chan = M.Message.channel.new_channel()
         @chan.sub('ping')
         def handle_ping(chan, msg):
-            chan.pub('pong', self._name)
+            data = msg['data']
+            if data['worker'] in (self._name, '*'):
+                data['worker'] = self._name
+                chan.pub('pong', data)
         @chan.sub('kill')
         def handle_kill(chan, msg):
             if msg['data'] in (self._name, '*'):
                 log.error('Received %r, exiting', msg)
-                os._exit(0)
+                sys.exit(0)
         while True:
-            chan.handle_ready(await=True)
+            chan.handle_ready(await=True, raise_errors=True)
             time.sleep(0.2)
 
     def _waitfunc(self):
@@ -52,15 +54,18 @@ class Worker(object):
         chan.sub('send')
         for event in chan.cursor(await=True):
             return
+        time.sleep(self._sleep)
 
     def handler(self):
+        log.info('Entering handler thread')
         while True:
-            log.info('Entering handler thread')
             conn = M.doc_session.bind.bind.conn
             try:
-                msg, state = M.Message.reserve(self._name, self.queues)
-                if msg is None: self._waitfunc()
-                if state is None: continue
+                msg, state = M.Message.reserve(self._name, self._queues)
+                if msg is None:
+                    self._waitfunc()
+                if state is None:
+                    continue
                 log.info('Worker reserved %r', msg)
                 task = Task.from_state(state)
                 task.handle(msg)

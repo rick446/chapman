@@ -19,8 +19,7 @@ log = None
 
 def main(args):
     from chapman import model as M
-    chan = M.Event.channel()
-    chan.pub('kill', args['<name>'])
+    M.Message.channel.pub('kill', args['<name>'])
 
 if __name__ == '__main__':
     args = docopt(__doc__)
