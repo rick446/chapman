@@ -34,6 +34,8 @@ class Composite(Task):
         raise NotImplementedError, 'retire_subtask'
 
     def remove_subtasks(self):
+        '''Removes all subtasks AND messages for this task'''
+        M.Message.m.remove({ 'task_id': self.id })
         M.TaskState.m.remove({ 'parent_id': self.id })
         
     

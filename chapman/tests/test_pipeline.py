@@ -5,6 +5,7 @@ from mongotools import mim
 
 from chapman.task import Task, Function, Pipeline
 from chapman import model as M
+from chapman import exc
 
 class TestPipeline(unittest.TestCase):
 
@@ -18,7 +19,7 @@ class TestPipeline(unittest.TestCase):
     def _double(self, x):
         return x * 2
 
-    def test_twostage(self):
+    def test_2stage(self):
         t = Pipeline.s([
             self.doubler.s(),
             self.doubler.s()])
@@ -34,3 +35,21 @@ class TestPipeline(unittest.TestCase):
         self.assertEqual(M.TaskState.m.find().count(), 1)
         self.assertEqual(t.get(), 8)
 
+    def test_2stage_err(self):
+        t = Pipeline.s([
+            self.doubler.s(),
+            self.doubler.s()])
+        t.start(None)
+        while True:
+            m,s = M.Message.reserve('foo', ['chapman'])
+            if s is None: break
+            print 'Handling %s' % m
+            task = Task.from_state(s)
+            task.handle(m)
+        t.refresh()
+        self.assertEqual(M.Message.m.find().count(), 0)
+        self.assertEqual(M.TaskState.m.find().count(), 1)
+        with self.assertRaises(exc.TaskError) as err:
+            t.get()
+        self.assertEqual(err.exception.args[0], TypeError)
+        
