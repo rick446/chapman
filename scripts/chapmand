@@ -36,9 +36,7 @@ def main(args):
     w = worker.Worker(
         name, queues, num_threads=num_threads, raise_errors=args['--debug'])
     w.start()
-    while True:
-        time.sleep(30)
-        log.info('--- mark ---')
+    w.run()
 
 if __name__ == '__main__':
     args = docopt(__doc__)

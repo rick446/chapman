@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from mongotools.util import LazyProperty
 from mongotools.pubsub import Channel
 from ming import Field
 from ming.declarative import Document
@@ -12,13 +13,21 @@ class ChannelProxy(object):
 
     def __init__(self, name):
         self._name = name
-        self._channel = None
+
+    @LazyProperty
+    def _channel(self):
+        return self.new_channel()
+
+    def __getattr__(self, name):
+        return getattr(self._channel, name)
 
     def __get__(self, obj, cls=None):
-        if obj is None: return self
-        if self._channel is None:
-            self._channel = Channel(doc_session.db, self._name)
+        if obj is None:
+            return self
         return self._channel
+
+    def new_channel(self):
+        return Channel(doc_session.db, self._name)
 
 class Message(Document):
     missing_worker = '-' * 10
