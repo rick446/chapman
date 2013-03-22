@@ -22,13 +22,13 @@ def main(args):
     t = threading.Thread(target=target)
     t.setDaemon(True)
     t.start()
-    log.info('Starting ping...')
     chan = M.Message.channel.new_channel()
     if args['<name>'] is None:
         worker = '*'
     else:
         worker = args['<name>']
     while True:
+        log.info('ping...')
         chan.pub('ping', {'ts_ping': datetime.utcnow(),
                           'worker': worker } )
         time.sleep(1)
