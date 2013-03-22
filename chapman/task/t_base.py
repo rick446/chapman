@@ -80,11 +80,12 @@ class Task(object):
         TaskState.set_result(self.id, result)
         if self._state.on_complete:
             msg = Message.m.get(_id=self._state.on_complete)
-            if result.status == 'success':
-                msg.send(result)
-            else:
-                msg.m.set(dict(slot='error'))
-                msg.send(result)
+            if msg is not None:
+                if result.status == 'success':
+                    msg.send(result)
+                else:
+                    msg.m.set(dict(slot='error'))
+                    msg.send(result)
             if not self._state.options.preserve_result:
                 self.forget()
         elif ( self._state.options.ignore_result
