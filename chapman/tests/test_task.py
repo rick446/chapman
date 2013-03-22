@@ -1,4 +1,5 @@
 from chapman.task import Task, Function
+from chapman.decorators import task
 from chapman import model as M
 from chapman import exc
 
@@ -17,6 +18,13 @@ class TestBasic(TaskTest):
     def test_create_task(self):
         self.doubler.s()
         self.assertEqual(1, M.TaskState.m.find().count())
+
+    def test_deco_task(self):
+        from chapman.task.t_func import FunctionTaskWrapper
+        @task()
+        def foo():
+            pass
+        self.assertIsInstance(foo, FunctionTaskWrapper)
 
     def test_create_message(self):
         t = self.doubler.s()

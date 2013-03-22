@@ -1,13 +1,28 @@
 from datetime import datetime
+
+from mongotools.pubsub import Channel
 from ming import Field
 from ming.declarative import Document
 from ming import schema as S
 
-from .m_base import doc_session, pickle_property, dumps, notify
+from .m_base import doc_session, pickle_property, dumps
 from .m_task import TaskState
+
+class ChannelProxy(object):
+
+    def __init__(self, name):
+        self._name = name
+        self._channel = None
+
+    def __get__(self, obj, cls=None):
+        if obj is None: return self
+        if self._channel is None:
+            self._channel = Channel(doc_session.db, self._name)
+        return self._channel
 
 class Message(Document):
     missing_worker = '-' * 10
+    channel = ChannelProxy('chapman.event')
     class __mongometa__:
         name = 'chapman.message'
         session = doc_session
@@ -17,7 +32,6 @@ class Message(Document):
     slot=Field(str)
     _args=Field('args', S.Binary)
     _kwargs=Field('kwargs', S.Binary)
-
     schedule = Field('s', dict(
             status=S.String(if_missing='pending'),
             ts=S.DateTime(if_missing=datetime.utcnow),
@@ -111,7 +125,7 @@ class Message(Document):
                 update={ '$set': { 's.status': 'next' } },
                 new=True)
             if next_msg:
-                notify('send', next_msg)
+                self.channel.pub('send', next_msg._id)
         self.m.delete()
 
     def send(self, *args, **kwargs):
@@ -122,7 +136,7 @@ class Message(Document):
             { 's.status': 'ready',
               'args': dumps(new_args),
               'kwargs': dumps(new_kwargs) })
-        notify('send', self)
+        self.channel.pub('send', self._id)
 
     args = pickle_property('_args')
     kwargs = pickle_property('_kwargs')
