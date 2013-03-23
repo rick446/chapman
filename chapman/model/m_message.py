@@ -132,18 +132,25 @@ class Message(Document):
 
     def unlock(self):
         '''Make a message ready for processing'''
-        ts = TaskState.m.get(_id=self.task_id)
-        if ts is None:
-            log.info('Target task has gone away')
-            self.m.delete()
-            return
-        if ts.mq[0] == self._id: new_status = 'next'
-        elif ts in ts.mq: new_status = 'queued'
-        else: new_status = 'ready'
-        Message.m.collection.update(
-            { '_id': self._id, 's.w': self.schedule.w },
+        # Dequeue the message from any taskstate it's on
+        state = TaskState.m.find_and_modify(
+            {'_id': self.task_id},
+            update={'$pull': { 'mq': self._id } },
+            new=True)
+        # If this task now has a q2 task at the front of the queue, it must be
+        # activated.
+        if state and state.mq:
+            next_id = state.mq[0]
+            r = Message.m.collection.update(
+                { '_id': next_id, 's.status': 'q2' },
+                { '$set': { 's.status': 'next' } })
+            if r['updatedExisting']:
+                self.channel.pub('send', next_id)
+        # Re-dispatch this message
+        Message.m.update_partial(
+            { '_id': self._id },
             { '$set': {
-                    's.status': new_status,
+                    's.status': 'ready',
                     's.w': self.missing_worker } } )
         self.channel.pub('send', self._id)
 
