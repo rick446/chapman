@@ -13,6 +13,8 @@ class Pipeline(Composite):
 
     def retire_subtask(self, msg):
         result, position = msg.args
+        if result.status == 'failure':
+            return self.retire(result)
         next_state = M.TaskState.m.find(
             { 'parent_id': self.id,
               'data.composite_position': position + 1 } ).first()
@@ -21,6 +23,7 @@ class Pipeline(Composite):
         else:
             next_task = self.from_state(next_state)
             next_task.start(result.get())
+            result.forget()
 
     def error(self, msg):
         self.retire(msg.args[0])

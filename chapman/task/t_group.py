@@ -15,14 +15,15 @@ class Group(Composite):
             st.start(*msg.args, **msg.kwargs)
 
     def retire_subtask(self, msg):
+        result, position = msg.args
         M.TaskState.m.update_partial(
             { '_id': self.id },
             { '$inc': { 'data.n_waiting': -1 } })
+        if self._state.options.ignore_result and result.status == 'success':
+            M.TaskState.m.remove( { '_id': result.task_id } )
         self.refresh()
-        if self._state.data.n_waiting == 0 and self._state.status == 'active':
+        if self._state.data.n_waiting <= 0 and self._state.status == 'active':
             self.retire()
-
-    error = retire_subtask
 
     def retire(self):
         gr = GroupResult(

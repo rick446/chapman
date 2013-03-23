@@ -23,7 +23,7 @@ class Composite(Task):
         st._state.m.set({
                 'parent_id': self.id,
                 'data.composite_position': position,
-                'options.preserve_result': True,
+                'options.ignore_result': False,
                 })
         M.TaskState.m.update_partial(
             { '_id': self.id },

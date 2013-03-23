@@ -14,6 +14,11 @@ class Task(object):
     def __init__(self, state):
         self._state = state
 
+    def __repr__(self):
+        return '<%s %s>' % (
+            self.__class__.__name__,
+            self._state._id)
+
     @property
     def id(self):
         return self._state._id
@@ -81,16 +86,8 @@ class Task(object):
         if self._state.on_complete:
             msg = Message.m.get(_id=self._state.on_complete)
             if msg is not None:
-                if result.status == 'success':
-                    msg.send(result)
-                else:
-                    msg.m.set(dict(slot='error'))
-                    msg.send(result)
-            if not self._state.options.preserve_result:
-                self.forget()
-        elif ( self._state.options.ignore_result
-               and not self._state.options.preserve_result
-               and result.status == 'success'):
+                msg.send(result)
+        if self._state.options.ignore_result:
             self.forget()
         else:
             self.refresh()
@@ -128,6 +125,9 @@ class Result(object):
             task_id, 'failure',
             exc.TaskError.from_exc_info(
                 message, ex_type, ex_value, tb))
+
+    def forget(self):
+        TaskState.m.remove({'_id': self.task_id})
 
     def get(self):
         if self.status == 'success':

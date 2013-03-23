@@ -18,11 +18,17 @@ class TaskTest(unittest.TestCase):
     def _double(self, x):
         return x * 2
 
-    def _handle_messages(self, worker='foo', queues=None):
+    def _handle_messages(self, worker='foo', queues=None, limit=-1):
+        for m, s in self._message_iter(worker, queues):
+            self._handle_message(m, s)
+            limit -= 1
+            if limit == 0: break
+
+    def _message_iter(self, worker='foo', queues=None):
         while True:
             m,s = self._reserve_message(worker, queues)
             if s is None: break
-            self._handle_message(m, s)
+            yield m, s
 
     def _reserve_message(self, worker='foo', queues=None):
         if queues is None: queues = ['chapman']

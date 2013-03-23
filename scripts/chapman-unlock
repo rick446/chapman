@@ -23,38 +23,30 @@ def main(args):
     from chapman import model as M
     chan = M.Message.channel.new_channel()
     workers = get_live_workers(chan)
-    for msg in M.Message.m.find(
-        { 's.status': { '$in': [ 'queued', 'busy' ] },
-          's.w': { '$nin': workers } }):
-        import ipdb; ipdb.set_trace()
-
+    workers.append(M.Message.missing_worker)
+    q = M.Message.m.find(
+        { 's.status': {'$in': [ 'busy', 'queued' ] },
+          's.w': { '$nin': workers } })
+    for msg in q:
+        log.info('Unlock message %s', msg)
+        msg.unlock()
 
 def get_live_workers(chan):
     workers = []
     @chan.sub('pong')
     def save_pongs(chan, msg):
-        workers.append(msg['data']['worker'])
+        worker = msg['data']['worker']
+        workers.append(worker)
+        log.info('... %s', worker)
     log.info('Sending ping...')
     chan.pub('ping', {'ts_ping': datetime.utcnow(),
                       'worker': '*' } )
     for x in range(10):
-        chan.handle_ready(raise_errors=True, await=True)
         time.sleep(0.1)
-    log.info('Responses: %r', workers)
+        chan.handle_ready(raise_errors=True, await=True)
+    log.info('Waited long enough, unlocking messages now....')
     return workers
 
-def target():
-    from chapman import model as M
-    chan = M.Message.channel.new_channel()
-    @chan.sub('pong')
-    def handler(chan, msg):
-        now = datetime.utcnow()
-        data = msg['data']
-        elapsed = now - data['ts_ping']
-        log.info('%s: %.1fms', data['worker'], 1000 * elapsed.total_seconds())
-    while True:
-        chan.handle_ready(raise_errors=True, await=True)
-        time.sleep(0.1)
 if __name__ == '__main__':
     args = docopt(__doc__)
     logging.config.fileConfig(

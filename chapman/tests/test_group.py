@@ -1,6 +1,7 @@
 from chapman.task import Function, Group
 from chapman import model as M
 from chapman import exc
+from chapman.decorators import task
 
 from .test_base import TaskTest
 
@@ -16,6 +17,28 @@ class TestGroup(TaskTest):
         self.assertEqual(M.Message.m.find().count(), 0)
         self.assertEqual(M.TaskState.m.find().count(), 1)
         self.assertEqual(t.result.get(), [4,4])
+
+    def test_two_ignore(self):
+        runs = []
+        @task(raise_errors=True)
+        def _save_arg_in_runs(arg):
+            runs.append(arg)
+        t = Group.new(
+            [ _save_arg_in_runs.n(),
+              _save_arg_in_runs.n() ],
+            ignore_result=True)
+        t.start(10)
+        # Start the group and the subtasks
+        self._handle_messages(limit=3)
+        self.assertEqual(M.Message.m.find().count(), 2)
+        self.assertEqual(M.TaskState.m.find().count(), 3)
+        self.assertEqual(runs, [ 10, 10 ])
+        self._handle_messages(limit=1)
+        self.assertEqual(M.Message.m.find().count(), 1)
+        self.assertEqual(M.TaskState.m.find().count(), 2)
+        self._handle_messages(limit=1)
+        self.assertEqual(M.Message.m.find().count(), 0)
+        self.assertEqual(M.TaskState.m.find().count(), 0)
 
     def test_group_order_invert(self):
         t = Group.n()
@@ -90,3 +113,4 @@ class TestGroup(TaskTest):
         self._handle_message(m, s)
         t.refresh()
         self.assertEqual([4,4], t.result.get())
+

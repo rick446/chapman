@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from mongotools.util import LazyProperty
@@ -8,6 +9,8 @@ from ming import schema as S
 
 from .m_base import doc_session, pickle_property, dumps
 from .m_task import TaskState
+
+log = logging.getLogger(__name__)
 
 class ChannelProxy(object):
 
@@ -98,15 +101,16 @@ class Message(Document):
     def _reserve_ready(cls, worker, queues):
         '''Reserves a message in 'ready' status.
 
-        Ready messages must move through 'queued' status before they become
+        Ready messages must move through q1 status before they become
         'busy', since there may already be a message locking the task.
+        If there is already a message locking the task, the state is set to q2.
         '''
         # Reserve message
         self = cls.m.find_and_modify(
             { 's.status': 'ready',
               's.q': { '$in': queues } },
             sort=[('s.pri', -1), ('s.ts', 1) ],
-            update={'$set': { 's.w': worker, 's.status': 'queued' } },
+            update={'$set': { 's.w': worker, 's.status': 'q1' } },
             new=True)
         if self is None: return None, None
         # Enqueue on TaskState
@@ -119,8 +123,30 @@ class Message(Document):
             self.m.set({'s.status': 'busy'})
             return self, state
         else:
+            # Not the first, so set to q2
+            cls.m.update_partial(
+                { '_id': self._id, 's.status': 'q1' },
+                { '$set': { 's.status': 'q2',
+                            's.w': cls.missing_worker } } )
             return self, None
-                    
+
+    def unlock(self):
+        '''Make a message ready for processing'''
+        ts = TaskState.m.get(_id=self.task_id)
+        if ts is None:
+            log.info('Target task has gone away')
+            self.m.delete()
+            return
+        if ts.mq[0] == self._id: new_status = 'next'
+        elif ts in ts.mq: new_status = 'queued'
+        else: new_status = 'ready'
+        Message.m.collection.update(
+            { '_id': self._id, 's.w': self.schedule.w },
+            { '$set': {
+                    's.status': new_status,
+                    's.w': self.missing_worker } } )
+        self.channel.pub('send', self._id)
+
     @classmethod
     def reserve(cls, worker, queues):
         '''Reserve a message & try to lock the task state.
@@ -143,7 +169,8 @@ class Message(Document):
             new=True)
         if state is not None and state.mq:
             next_msg = Message.m.find_and_modify(
-                { '_id': state.mq[0], 's.status': 'queued' },
+                { '_id': state.mq[0],
+                  's.status': { '$in': [ 'q1', 'q2' ] } },
                 update={ '$set': { 's.status': 'next' } },
                 new=True)
             if next_msg:
@@ -156,6 +183,7 @@ class Message(Document):
         new_kwargs.update(kwargs)
         self.m.set(
             { 's.status': 'ready',
+              's.ts': datetime.utcnow(),
               'args': dumps(new_args),
               'kwargs': dumps(new_kwargs) })
         self.channel.pub('send', self._id)

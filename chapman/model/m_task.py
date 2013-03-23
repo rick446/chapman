@@ -22,8 +22,7 @@ class TaskState(Document):
             queue=S.String(if_missing='chapman'),
             priority=S.Int(if_missing=10),
             immutable=S.Bool(if_missing=False),
-            ignore_result=S.Bool(if_missing=False),
-            preserve_result=S.Bool(if_missing=False), # keep even if linked
+            ignore_result=S.Bool(if_missing=False)
             ))
     on_complete=Field(S.ObjectId, if_missing=None)
     mq=Field([S.ObjectId()])

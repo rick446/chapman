@@ -86,7 +86,7 @@ class TestBasic(TaskTest):
         @Function.decorate('doubler_result')
         def doubler_result(result):
             return result.get() * 2
-        t0 = self.doubler.n()
+        t0 = self.doubler.new(ignore_result=True)
         t1 = doubler_result.n()
         t0.link(t1, 'run')
         t0.start(2)
