@@ -24,6 +24,8 @@ class Worker(object):
         self._handler_threads = []
 
     def start(self):
+        chan = M.Message.channel.new_channel()
+        chan.pub('start', self._name)
         self._handler_threads = [
             threading.Thread(target=self.handler)
             for x in range(self._num_threads) ]
