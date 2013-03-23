@@ -34,7 +34,10 @@ def main(args):
     log.info('Starting chapmand %s: listening on %s', name, queues)
     num_threads = int(args['--concurrency'])
     w = worker.Worker(
-        name, queues, num_threads=num_threads, raise_errors=args['--debug'])
+        '%s:%s' % (name, os.getpid()),
+        queues,
+        num_threads=num_threads,
+        raise_errors=args['--debug'])
     w.start()
     w.run()
 
