@@ -4,7 +4,6 @@
 
 Options:
   -h --help              show this help message and exit
-  -m --messages=REGEX    regex of messages to monitor [default: .*]
 """
 
 import os
@@ -18,7 +17,7 @@ from docopt import docopt
 from pyramid.paster import bootstrap
 
 from chapman import model as M
-from chapman import Actor
+from chapman import Task
 
 log = None
 
@@ -28,30 +27,17 @@ def main(args):
     mainloop(args)
 
 def mainloop(args):
-    db = M.doc_session.db
-    evcoll = db.chapman.event
-    doc = db.chapman.sequence.find_one(dict(_id='event'))
-    if doc:
-        last = doc['next']
+    chan = M.Message.channel.new_channel()
+    @chan.sub('send')
+    def handler(chan, ev):
+        msg = M.Message.m.get(_id=ev['data'])
+        if msg is not None:
+            log.info('%r', msg)
+        else:
+            log.info('%r', ev)
     while True:
-        spec = {
-            '_id': { '$gt': last },
-            'name': re.compile(args['--messages'])}
-        q = evcoll.find(spec, tailable=True, await_data=True)
-        q = q.sort('$natural')
-        for ev in q:
-            now = datetime.utcnow()
-            ts = ev.get('ts', now)
-            elapsed = now-ts
-            a = Actor.by_id(ev['actor_id'])
-            if a:
-                sactor = repr(a)
-            else:
-                sactor = '<Unknown Actor %s>' % ev['actor_id']
-            log.info('%s %s (latency %sms)', ev['name'], sactor,
-                     1000.0 * elapsed.total_seconds())
-            last = ev['_id']
-        time.sleep(1)
+        chan.handle_ready(raise_errors=True, await=True)
+        time.sleep(0.1)
        
 if __name__ == '__main__':
     args = docopt(__doc__)
