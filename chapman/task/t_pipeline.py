@@ -30,5 +30,5 @@ class Pipeline(Composite):
 
     def retire(self, result):
         result.task_id = self.id
-        self.complete(result)
         self.remove_subtasks()
+        self.complete(result)

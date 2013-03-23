@@ -28,7 +28,7 @@ def main(args):
 
 def mainloop(args):
     chan = M.Message.channel.new_channel()
-    @chan.sub('send')
+    @chan.sub('')
     def handler(chan, ev):
         msg = M.Message.m.get(_id=ev['data'])
         if msg is not None:

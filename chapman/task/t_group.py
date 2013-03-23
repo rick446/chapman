@@ -30,8 +30,8 @@ class Group(Composite):
             self.id, 
             [ st_state.result
               for st_state in self.subtask_iter() ])
-        self.complete(gr)
         self.remove_subtasks()
+        self.complete(gr)
 
 class GroupResult(Result):
     def __init__(self, task_id, sub_results):
