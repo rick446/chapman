@@ -18,6 +18,16 @@ class TestGroup(TaskTest):
         self.assertEqual(M.TaskState.m.find().count(), 1)
         self.assertEqual(t.result.get(), [4,4])
 
+    def test_collect_ignored_results(self):
+        t = Group.n(
+            self.doubler.new(ignore_result=True),
+            self.doubler.new(ignore_result=True),
+            )
+        t.start(2)
+        self._handle_messages()
+        t.refresh()
+        self.assertEqual(t.result.get(), 4)
+
     def test_two_ignore(self):
         runs = []
         @task(raise_errors=True)

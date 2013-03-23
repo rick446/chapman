@@ -87,7 +87,7 @@ class Task(object):
             msg = Message.m.get(_id=self._state.on_complete)
             if msg is not None:
                 msg.send(result)
-        if self._state.options.ignore_result:
+        if self._state.options.ignore_result and result.status == 'success':
             self.forget()
         else:
             self.refresh()
