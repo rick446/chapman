@@ -8,6 +8,9 @@ class TaskState(Document):
     class __mongometa__:
         name='chapman.task'
         session = doc_session
+        indexes = [
+            [('parent_id', 1) ],
+            ]
 
     _id=Field(S.ObjectId)
     type=Field(str)

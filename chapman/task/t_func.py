@@ -35,6 +35,7 @@ class Function(Task):
     def spawn(cls, *args, **kwargs):
         self = cls.new(args, kwargs)
         self.start()
+        return self
 
     def __repr__(self):
         return '<%s %s>' % (

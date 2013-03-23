@@ -35,6 +35,11 @@ class Message(Document):
     class __mongometa__:
         name = 'chapman.message'
         session = doc_session
+        indexes = [
+            [ ('s.status', 1), ('s.pri', -1), ('s.ts', 1), ('s.q', 1) ],
+            [ ('s.q', 1), ('s.status', 1), ('s.pri', -1), ('s.ts', 1) ],
+            [('task_id', 1) ],
+            ]
     _id=Field(S.ObjectId)
     task_id=Field(S.ObjectId, if_missing=None)
     task_repr=Field(str, if_missing=None)
