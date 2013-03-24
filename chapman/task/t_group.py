@@ -11,8 +11,9 @@ class Group(Composite):
         else:
             self._state.m.set(dict(status='active'))
         for st_state in self.subtask_iter():
-            st = self.from_state(st_state)
-            st.start(*msg.args, **msg.kwargs)
+            if st_state.schedule.status == 'pending':
+                st = self.from_state(st_state)
+                st.start(*msg.args, **msg.kwargs)
 
     def retire_subtask(self, msg):
         result, position = msg.args
