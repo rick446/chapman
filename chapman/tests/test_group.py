@@ -26,7 +26,7 @@ class TestGroup(TaskTest):
         t.start(2)
         self._handle_messages()
         t.refresh()
-        self.assertEqual(t.result.get(), 4)
+        self.assertEqual(t.result.get(), [4,4])
 
     def test_two_ignore(self):
         runs = []

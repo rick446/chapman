@@ -19,6 +19,10 @@ class Task(object):
             self.__class__.__name__,
             self._state._id)
 
+    def run(self, msg, raise_errors=False):
+        '''Do the work of the task'''
+        raise NotImplementedError, 'run'
+
     @property
     def id(self):
         return self._state._id
@@ -28,7 +32,7 @@ class Task(object):
         return self._state.result
 
     @classmethod
-    def new(cls, data, status='active', **options):
+    def new(cls, data, status='pending', **options):
         state = TaskState.make(dict(
                 type=cls.name,
                 status=status,
@@ -62,15 +66,9 @@ class Task(object):
     def refresh(self):
         self._state = TaskState.m.get(_id=self.id)
 
-    def run(self, msg, raise_errors=False):
-        '''Do the work of the task'''
-        raise NotImplementedError, 'run'
-
-    def error(self, msg):
-        self.complete(msg.args[0])
-
     def start(self, *args, **kwargs):
         '''Send a 'run' message & update state'''
+        self._state.m.set(dict(status='ready'))
         msg = Message.new(self, 'run', args, kwargs)
         msg.send()
         return msg

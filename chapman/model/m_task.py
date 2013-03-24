@@ -15,7 +15,7 @@ class TaskState(Document):
     _id=Field(S.ObjectId)
     type=Field(str)
     parent_id=Field(S.ObjectId, if_missing=None)
-    status=Field(str)
+    status=Field(str, if_missing='pending')
     _result=Field('result', S.Binary)
     data=Field({str:None})
     options=Field(dict(
