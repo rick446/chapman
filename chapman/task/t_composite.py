@@ -17,7 +17,7 @@ class Composite(Task):
             self.append(st)
         return self
 
-    def append(self, st):
+    def append(self, st, start=False):
         position = self._state.data.n_subtask
         st.link(self, 'retire_subtask', position)
         st._state.m.set({
@@ -32,6 +32,8 @@ class Composite(Task):
                     'data.n_waiting': 1 } } )
         self._state.data.n_subtask += 1
         self._state.data.n_waiting += 1
+        if start:
+            st.start()
 
     def subtask_iter(self):
         q = M.TaskState.m.find({'parent_id': self.id })
