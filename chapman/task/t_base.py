@@ -95,7 +95,7 @@ class Task(object):
 
     def handle(self, msg):
         with g.set_context(self, msg):
-            if self._state.status != 'active':
+            if self._state.status in ('success', 'failure'):
                 log.warning(
                     'Ignoring message to %s task: %r',
                     self._state.status, msg)
