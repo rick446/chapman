@@ -68,7 +68,7 @@ class Task(object):
 
     def start(self, *args, **kwargs):
         '''Send a 'run' message & update state'''
-        self._state.m.set(dict(status='ready'))
+        self._state.m.set(dict(status='active'))
         msg = Message.new(self, 'run', args, kwargs)
         msg.send()
         return msg
@@ -95,8 +95,10 @@ class Task(object):
 
     def handle(self, msg):
         with g.set_context(self, msg):
-            if self._state.status == 'complete': # pragma no cover
-                log.warning('Ignoring message to complete task: %r', msg)
+            if self._state.status != 'active':
+                log.warning(
+                    'Ignoring message to %s task: %r',
+                    self._state.status, msg)
             else:
                 method = getattr(self, msg.slot)
                 method(msg)

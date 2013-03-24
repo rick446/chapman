@@ -35,5 +35,5 @@ class TaskState(Document):
             { '_id': id },
             { '$set': {
                     'result': dumps(result),
-                    'status': 'complete' } } )
+                    'status': result.status } } )
     
