@@ -1,3 +1,4 @@
+import sys
 from chapman import model as M
 
 from .t_base import Result
@@ -16,15 +17,20 @@ class Group(Composite):
                 st.start(*msg.args, **msg.kwargs)
 
     def retire_subtask(self, msg):
-        result, position = msg.args
-        M.TaskState.m.update_partial(
-            { '_id': self.id },
-            { '$inc': { 'data.n_waiting': -1 } })
-        if self._state.options.ignore_result and result.status == 'success':
-            M.TaskState.m.remove( { '_id': result.task_id } )
-        self.refresh()
-        if self._state.data.n_waiting <= 0 and self._state.status == 'active':
-            self.retire()
+        try:
+            result, position = msg.args
+            M.TaskState.m.update_partial(
+                { '_id': self.id },
+                { '$inc': { 'data.n_waiting': -1 } })
+            if self._state.options.ignore_result and result.status == 'success':
+                M.TaskState.m.remove( { '_id': result.task_id } )
+            self.refresh()
+            if self._state.data.n_waiting <= 0 and self._state.status == 'active':
+                self.retire()
+        except:
+            result = Result.failure(
+                self._state._id, 'Error in %r' % self, *sys.exc_info())
+            self.complete(result)
 
     def retire(self):
         gr = GroupResult(
