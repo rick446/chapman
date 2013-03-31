@@ -105,7 +105,6 @@ def _reserve_msg(name, qnames, waitfunc):
     while True:
         msg, state = M.Message.reserve(name, qnames)
         if msg is None:
-            log.info('No message, waiting...')
             waitfunc()
         if state is None:
             continue
