@@ -5,6 +5,7 @@ import sys
 import time
 import logging
 import threading
+from Queue import Queue
 
 import model as M
 from .task import Task, Function
@@ -13,21 +14,32 @@ log = logging.getLogger(__name__)
 
 class Worker(object):
 
-    def __init__(self, name, queues,
+    def __init__(self, name, qnames,
                  num_threads=1, sleep=1,
                  raise_errors=False):
         self._name = name
-        self._queues = queues
+        self._qnames = qnames
         self._num_threads = num_threads
         self._sleep = sleep
         Function.raise_errors = raise_errors
         self._handler_threads = []
+        self._num_active_messages = 0
 
     def start(self):
         chan = M.Message.channel.new_channel()
         chan.pub('start', self._name)
+        sem = threading.Semaphore(self._num_threads)
+        q = Queue()
         self._handler_threads = [
-            threading.Thread(target=self.handler)
+            threading.Thread(
+                name='dispatch',
+                target=self.dispatcher,
+                args=(sem, q)) ]
+        self._handler_threads += [
+            threading.Thread(
+                name='worker-%d' % x,
+                target=self.worker,
+                args=(sem, q))
             for x in range(self._num_threads) ]
         for t in self._handler_threads:
             t.setDaemon(True)
@@ -58,25 +70,43 @@ class Worker(object):
             return
         time.sleep(self._sleep)
 
-    def handler(self):
-        log.info('Entering handler thread')
+    def dispatcher(self, sem, q):
+        log.info('Entering dispatcher thread')
+        while True:
+            sem.acquire()
+            msg, state = _reserve_msg(self._name, self._qnames, self._waitfunc)
+            self._num_active_messages += 1
+            log.info('Reserved %r (%s)',
+                     msg, self._num_active_messages)
+            q.put((msg, state))
+
+    def worker(self, sem, q):
+        log.info('Entering worker thread')
         while True:
             conn = M.doc_session.bind.bind.conn
             try:
-                msg, state = M.Message.reserve(self._name, self._queues)
-                if msg is None:
-                    self._waitfunc()
-                if state is None:
-                    continue
-                log.info('Worker reserved %r', msg)
+                msg, state = q.get()
+                if msg is None: break
+                log.info('Received %r', msg)
                 task = Task.from_state(state)
                 task.handle(msg)
             except Exception:
-                log.exception('Unexpected error in handler thread')
+                log.exception('Unexpected error in worker thread')
                 time.sleep(1)
             finally:
+                self._num_active_messages += 1
+                sem.release()
                 try:
                     conn.end_request()
                 except Exception:
                     log.exception('Could not end request')
-            
+        
+def _reserve_msg(name, qnames, waitfunc):
+    while True:
+        msg, state = M.Message.reserve(name, qnames)
+        if msg is None:
+            log.info('No message, waiting...')
+            waitfunc()
+        if state is None:
+            continue
+        return msg, state
