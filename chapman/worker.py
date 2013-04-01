@@ -94,7 +94,7 @@ class Worker(object):
                 log.exception('Unexpected error in worker thread')
                 time.sleep(1)
             finally:
-                self._num_active_messages += 1
+                self._num_active_messages -= 1
                 sem.release()
                 try:
                     conn.end_request()
@@ -106,6 +106,7 @@ def _reserve_msg(name, qnames, waitfunc):
         msg, state = M.Message.reserve(name, qnames)
         if msg is None:
             waitfunc()
+            continue
         if state is None:
             continue
         return msg, state
