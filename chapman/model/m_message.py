@@ -58,7 +58,7 @@ class Message(Document):
 
     def __repr__(self):
         return '<msg (%s) %s to %s %s on %s>' % (
-            self.schedule.status, self._id, self.slot, self.task_repr, 
+            self.schedule.status, self._id, self.slot, self.task_repr,
             self.schedule.w)
 
     @classmethod
@@ -96,7 +96,7 @@ class Message(Document):
         if self is None: return None, None
         state = TaskState.m.get(_id=self.task_id)
         return self, state
-        
+
     @classmethod
     def _reserve_ready(cls, worker, queues):
         '''Reserves a message in 'ready' status.
@@ -118,6 +118,7 @@ class Message(Document):
             { '_id': self.task_id },
             update={'$push': { 'mq': self._id } },
             new=True)
+        if state is None: return self, None
         if state.mq[0] == self._id:
             # We are the first in the queue, so we get to go
             self.m.set({'s.status': 'busy'})
