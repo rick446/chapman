@@ -19,7 +19,9 @@ class Composite(Task):
 
     def append(self, st, start=False):
         position = self._state.data.n_subtask
-        st.link(self, 'retire_subtask', position)
+        st.link(
+            self, 'retire_subtask', position,
+            **{'s.pri': self._state.options.priority + 1})
         st._state.m.set({
                 'parent_id': self.id,
                 'data.composite_position': position,
@@ -50,5 +52,5 @@ class Composite(Task):
         '''Removes all subtasks AND messages for this task'''
         M.Message.m.remove({ 'task_id': self.id })
         M.TaskState.m.remove({ 'parent_id': self.id })
-        
-    
+
+

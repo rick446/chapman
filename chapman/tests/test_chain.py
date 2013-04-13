@@ -4,6 +4,7 @@ from chapman import exc
 
 from .test_base import TaskTest
 
+
 class TestChain(TaskTest):
 
     def test_chain_ok(self):
@@ -11,7 +12,7 @@ class TestChain(TaskTest):
         def fact(n, acc=1):
             print 'fact(%s, %s)' % (n, acc)
             if n > 1:
-                raise Chain.call(fact.n(), n-1, n*acc)
+                raise Chain.call(fact.n(), n - 1, n * acc)
             return acc
         t = fact.n()
         t.start(5)
@@ -26,9 +27,9 @@ class TestChain(TaskTest):
         def fact_err(n, acc=1):
             print 'fact(%s, %s)' % (n, acc)
             if n == 2:
-                raise TypeError, 'fact'
+                raise TypeError('fact')
             elif n > 1:
-                raise Chain.call(fact_err.n(), n-1, n*acc)
+                raise Chain.call(fact_err.n(), n - 1, n * acc)
             else:
                 return acc
         t = fact_err.n()
@@ -40,4 +41,3 @@ class TestChain(TaskTest):
         self.assertEqual(err.exception.args[0], TypeError)
         self.assertEqual(M.Message.m.find().count(), 0)
         self.assertEqual(M.TaskState.m.find().count(), 1)
-        
