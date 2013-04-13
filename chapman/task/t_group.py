@@ -1,8 +1,13 @@
 import sys
+import logging
+
 from chapman import model as M
 
 from .t_base import Result
 from .t_composite import Composite
+
+log = logging.getLogger(__name__)
+
 
 class Group(Composite):
 
@@ -18,7 +23,12 @@ class Group(Composite):
 
     def retire_subtask(self, msg):
         try:
-            result, position = msg.args
+            try:
+                result, position = msg.args
+            except ValueError:
+                log.exception(
+                    'Wrong number of args in retire_subtask message: %r',
+                    msg.args)
             M.TaskState.m.update_partial(
                 { '_id': self.id },
                 { '$inc': { 'data.n_waiting': -1 } })
@@ -34,7 +44,7 @@ class Group(Composite):
 
     def retire(self):
         gr = GroupResult(
-            self.id, 
+            self.id,
             [ st_state.result
               for st_state in self.subtask_iter() ])
         self.remove_subtasks()
@@ -59,4 +69,4 @@ class GroupResult(Result):
     def get(self):
         return [ sr.get() for sr in self.sub_results ]
 
-        
+
