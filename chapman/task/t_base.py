@@ -7,6 +7,7 @@ from chapman import exc
 
 log = logging.getLogger(__name__)
 
+
 class Task(object):
     __metaclass__ = RegistryMetaclass
     _registry = {}
@@ -21,7 +22,7 @@ class Task(object):
 
     def run(self, msg, raise_errors=False):
         '''Do the work of the task'''
-        raise NotImplementedError, 'run'
+        raise NotImplementedError('run')
 
     @property
     def id(self):
@@ -34,10 +35,10 @@ class Task(object):
     @classmethod
     def new(cls, data, status='pending', **options):
         state = TaskState.make(dict(
-                type=cls.name,
-                status=status,
-                options=options,
-                data=data))
+            type=cls.name,
+            status=status,
+            options=options,
+            data=data))
         state.m.insert()
         return cls(state)
 
@@ -55,7 +56,7 @@ class Task(object):
     def set_options(self, **kwargs):
         updates = dict(
             ('options.' + k, v)
-            for k,v in kwargs.items())
+            for k, v in kwargs.items())
         self._state.m.set(updates)
 
     def schedule_options(self):
@@ -104,6 +105,7 @@ class Task(object):
                 method(msg)
             msg.retire()
 
+
 class Result(object):
 
     def __init__(self, task_id, status, data):
@@ -111,7 +113,7 @@ class Result(object):
         self.status = status
         self.data = data
 
-    def __repr__(self): # pragma no cover
+    def __repr__(self):  # pragma no cover
         return '<Result %s for %s>' % (
             self.status, self.task_id)
 
@@ -134,6 +136,5 @@ class Result(object):
             return self.data
         elif self.status == 'failure':
             raise self.data
-        else: # pragma no cover
+        else:  # pragma no cover
             assert False
-

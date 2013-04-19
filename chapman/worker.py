@@ -1,6 +1,6 @@
 __all__ = (
     'Worker',
-    )
+)
 import sys
 import time
 import logging
@@ -11,6 +11,7 @@ import model as M
 from .task import Task, Function
 
 log = logging.getLogger(__name__)
+
 
 class Worker(object):
 
@@ -34,26 +35,28 @@ class Worker(object):
             threading.Thread(
                 name='dispatch',
                 target=self.dispatcher,
-                args=(sem, q)) ]
+                args=(sem, q))]
         self._handler_threads += [
             threading.Thread(
                 name='worker-%d' % x,
                 target=self.worker,
                 args=(sem, q))
-            for x in range(self._num_threads) ]
+            for x in range(self._num_threads)]
         for t in self._handler_threads:
             t.setDaemon(True)
             t.start()
-        
+
     def run(self):
         log.info('Entering event thread')
         chan = M.Message.channel.new_channel()
+
         @chan.sub('ping')
         def handle_ping(chan, msg):
             data = msg['data']
             if data['worker'] in (self._name, '*'):
                 data['worker'] = self._name
                 chan.pub('pong', data)
+
         @chan.sub('kill')
         def handle_kill(chan, msg):
             if msg['data'] in (self._name, '*'):
@@ -86,7 +89,8 @@ class Worker(object):
             conn = M.doc_session.bind.bind.conn
             try:
                 msg, state = q.get()
-                if msg is None: break
+                if msg is None:
+                    break
                 log.info('Received %r', msg)
                 task = Task.from_state(state)
                 task.handle(msg)
@@ -100,7 +104,8 @@ class Worker(object):
                     conn.end_request()
                 except Exception:
                     log.exception('Could not end request')
-        
+
+
 def _reserve_msg(name, qnames, waitfunc):
     while True:
         msg, state = M.Message.reserve(name, qnames)

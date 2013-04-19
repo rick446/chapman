@@ -30,12 +30,14 @@ class Group(Composite):
                     'Wrong number of args in retire_subtask message: %r',
                     msg.args)
             M.TaskState.m.update_partial(
-                { '_id': self.id },
-                { '$inc': { 'data.n_waiting': -1 } })
-            if self._state.options.ignore_result and result.status == 'success':
-                M.TaskState.m.remove( { '_id': result.task_id } )
+                {'_id': self.id},
+                {'$inc': {'data.n_waiting': -1}})
+            if (self._state.options.ignore_result
+                    and result.status == 'success'):
+                M.TaskState.m.remove({'_id': result.task_id})
             self.refresh()
-            if self._state.data.n_waiting <= 0 and self._state.status == 'active':
+            if (self._state.data.n_waiting <= 0
+                    and self._state.status == 'active'):
                 self.retire()
         except:
             result = Result.failure(
@@ -45,10 +47,11 @@ class Group(Composite):
     def retire(self):
         gr = GroupResult(
             self.id,
-            [ st_state.result
-              for st_state in self.subtask_iter() ])
+            [st_state.result
+             for st_state in self.subtask_iter()])
         self.remove_subtasks()
         self.complete(gr)
+
 
 class GroupResult(Result):
     def __init__(self, task_id, sub_results):
@@ -60,13 +63,11 @@ class GroupResult(Result):
         else:
             self.status = 'failure'
 
-    def __repr__(self): # pragma no cover
+    def __repr__(self):  # pragma no cover
         return '<GroupResult for %s>' % (self.task_id)
 
     def __getitem__(self, index):
         return self.sub_results[index]
 
     def get(self):
-        return [ sr.get() for sr in self.sub_results ]
-
-
+        return [sr.get() for sr in self.sub_results]
