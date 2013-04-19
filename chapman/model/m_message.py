@@ -194,6 +194,24 @@ class Message(Document):
                 self.channel.pub('send', next_msg._id)
         self.m.delete()
 
+    def retire_and_chain(self):
+        '''Retire the message. If there is a message enqueued,
+        reserve and return it. Otherwise return None.
+        '''
+        state = TaskState.m.find_and_modify(
+            {'_id': self.task_id},
+            update={'$pull': {'mq': self._id}},
+            new=True)
+        next_msg = None
+        if state is not None and state.mq:
+            next_msg = Message.m.find_and_modify(
+                {'_id': state.mq[0],
+                 's.status': {'$in': ['q1', 'q2']}},
+                update={'$set': {'s.w': self.s.w, 's.status': 'busy'}},
+                new=True)
+        self.m.delete()
+        return next_msg
+
     def send(self, *args, **kwargs):
         new_args = args + self.args
         new_kwargs = self.kwargs

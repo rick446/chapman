@@ -94,16 +94,22 @@ class Task(object):
     def forget(self):
         self._state.m.delete()
 
-    def handle(self, msg):
-        with g.set_context(self, msg):
-            if self._state.status in ('success', 'failure'):
-                log.warning(
-                    'Ignoring message to %s task: %r',
-                    self._state.status, msg)
-            else:
-                method = getattr(self, msg.slot)
-                method(msg)
-            msg.retire()
+    def handle(self, msg, handle_extra=0):
+        while msg:
+            with g.set_context(self, msg):
+                if self._state.status in ('success', 'failure'):
+                    log.warning(
+                        'Ignoring message to %s task: %r',
+                        self._state.status, msg)
+                else:
+                    method = getattr(self, msg.slot)
+                    method(msg)
+                if handle_extra:
+                    msg = msg.retire_and_chain()
+                    handle_extra -= 1
+                else:
+                    msg.retire()
+                    msg = None
 
 
 class Result(object):

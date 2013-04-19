@@ -34,10 +34,9 @@ class TaskTest(unittest.TestCase):
         if queues is None: queues = ['chapman']
         return M.Message.reserve('foo', ['chapman'])
 
-    def _handle_message(self, msg, state):
+    def _handle_message(self, msg, state, handle_extra=0):
         print 'Handling %s' % msg
         print '... task is %s' % state.status
         task = Task.from_state(state)
-        task.handle(msg)
-        
+        task.handle(msg, handle_extra)
 

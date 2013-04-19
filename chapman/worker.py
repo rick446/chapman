@@ -93,7 +93,7 @@ class Worker(object):
                     break
                 log.info('Received %r', msg)
                 task = Task.from_state(state)
-                task.handle(msg)
+                task.handle(msg, 10)
             except Exception:
                 log.exception('Unexpected error in worker thread')
                 time.sleep(1)
