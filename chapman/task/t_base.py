@@ -106,6 +106,7 @@ class Task(object):
                     method(msg)
                 if handle_extra:
                     msg = msg.retire_and_chain()
+                    log.info('Chained to message: %r', msg)
                     handle_extra -= 1
                 else:
                     msg.retire()
