@@ -12,6 +12,7 @@ from .m_task import TaskState
 
 log = logging.getLogger(__name__)
 
+
 class ChannelProxy(object):
 
     def __init__(self, name):
@@ -32,29 +33,31 @@ class ChannelProxy(object):
     def new_channel(self):
         return Channel(doc_session.db, self._name)
 
+
 class Message(Document):
     missing_worker = '-' * 10
     channel = ChannelProxy('chapman.event')
+
     class __mongometa__:
         name = 'chapman.message'
         session = doc_session
         indexes = [
-            [ ('s.status', 1), ('s.pri', -1), ('s.ts', 1), ('s.q', 1) ],
-            [ ('s.q', 1), ('s.status', 1), ('s.pri', -1), ('s.ts', 1) ],
-            [('task_id', 1) ],
-            ]
-    _id=Field(S.ObjectId)
-    task_id=Field(S.ObjectId, if_missing=None)
-    task_repr=Field(str, if_missing=None)
-    slot=Field(str)
-    _args=Field('args', S.Binary)
-    _kwargs=Field('kwargs', S.Binary)
+            [('s.status', 1), ('s.pri', -1), ('s.ts', 1), ('s.q', 1)],
+            [('s.q', 1), ('s.status', 1), ('s.pri', -1), ('s.ts', 1)],
+            [('task_id', 1)],
+        ]
+    _id = Field(S.ObjectId)
+    task_id = Field(S.ObjectId, if_missing=None)
+    task_repr = Field(str, if_missing=None)
+    slot = Field(str)
+    _args = Field('args', S.Binary)
+    _kwargs = Field('kwargs', S.Binary)
     schedule = Field('s', dict(
-            status=S.String(if_missing='pending'),
-            ts=S.DateTime(if_missing=datetime.utcnow),
-            q=S.String(if_missing='chapman'),
-            pri=S.Int(if_missing=10),
-            w=S.String(if_missing=missing_worker)))
+        status=S.String(if_missing='pending'),
+        ts=S.DateTime(if_missing=datetime.utcnow),
+        q=S.String(if_missing='chapman'),
+        pri=S.Int(if_missing=10),
+        w=S.String(if_missing=missing_worker)))
 
     def __repr__(self):
         return '<msg (%s) %s to %s %s on %s>' % (
@@ -68,13 +71,15 @@ class Message(Document):
 
     @classmethod
     def new(cls, task, slot, args, kwargs):
-        if args is None: args = ()
-        if kwargs is None: kwargs = {}
+        if args is None:
+            args = ()
+        if kwargs is None:
+            kwargs = {}
         self = cls.make(dict(
-                task_id=task.id,
-                task_repr=repr(task),
-                slot=slot,
-                s=task.schedule_options()))
+            task_id=task.id,
+            task_repr=repr(task),
+            slot=slot,
+            s=task.schedule_options()))
         self.args = args
         self.kwargs = kwargs
         self.m.insert()
@@ -88,12 +93,13 @@ class Message(Document):
         to be the next message to obtain the task lock.
         '''
         self = cls.m.find_and_modify(
-            { 's.status': 'next',
-              's.q': { '$in': queues } },
-            sort=[('s.pri', -1), ('s.ts', 1) ],
-            update={'$set': { 's.w': worker, 's.status': 'busy' } },
+            {'s.status': 'next',
+             's.q': {'$in': queues}},
+            sort=[('s.pri', -1), ('s.ts', 1)],
+            update={'$set': {'s.w': worker, 's.status': 'busy'}},
             new=True)
-        if self is None: return None, None
+        if self is None:
+            return None, None
         state = TaskState.m.get(_id=self.task_id)
         return self, state
 
@@ -107,18 +113,20 @@ class Message(Document):
         '''
         # Reserve message
         self = cls.m.find_and_modify(
-            { 's.status': 'ready',
-              's.q': { '$in': queues } },
-            sort=[('s.pri', -1), ('s.ts', 1) ],
-            update={'$set': { 's.w': worker, 's.status': 'q1' } },
+            {'s.status': 'ready',
+             's.q': {'$in': queues}},
+            sort=[('s.pri', -1), ('s.ts', 1)],
+            update={'$set': {'s.w': worker, 's.status': 'q1'}},
             new=True)
-        if self is None: return None, None
+        if self is None:
+            return None, None
         # Enqueue on TaskState
         state = TaskState.m.find_and_modify(
-            { '_id': self.task_id },
-            update={'$push': { 'mq': self._id } },
+            {'_id': self.task_id},
+            update={'$push': {'mq': self._id}},
             new=True)
-        if state is None: return self, None
+        if state is None:
+            return self, None
         if state.mq[0] == self._id:
             # We are the first in the queue, so we get to go
             self.m.set({'s.status': 'busy'})
@@ -126,9 +134,9 @@ class Message(Document):
         else:
             # Not the first, so set to q2
             cls.m.update_partial(
-                { '_id': self._id, 's.status': 'q1' },
-                { '$set': { 's.status': 'q2',
-                            's.w': cls.missing_worker } } )
+                {'_id': self._id, 's.status': 'q1'},
+                {'$set': {'s.status': 'q2',
+                          's.w': cls.missing_worker}})
             return self, None
 
     def unlock(self):
@@ -136,23 +144,23 @@ class Message(Document):
         # Dequeue the message from any taskstate it's on
         state = TaskState.m.find_and_modify(
             {'_id': self.task_id},
-            update={'$pull': { 'mq': self._id } },
+            update={'$pull': {'mq': self._id}},
             new=True)
         # If this task now has a q2 task at the front of the queue, it must be
         # activated.
         if state and state.mq:
             next_id = state.mq[0]
             r = Message.m.collection.update(
-                { '_id': next_id, 's.status': 'q2' },
-                { '$set': { 's.status': 'next' } })
+                {'_id': next_id, 's.status': 'q2'},
+                {'$set': {'s.status': 'next'}})
             if r['updatedExisting']:
                 self.channel.pub('send', next_id)
         # Re-dispatch this message
         Message.m.update_partial(
-            { '_id': self._id },
-            { '$set': {
-                    's.status': 'ready',
-                    's.w': self.missing_worker } } )
+            {'_id': self._id},
+            {'$set': {
+                's.status': 'ready',
+                's.w': self.missing_worker}})
         self.channel.pub('send', self._id)
 
     @classmethod
@@ -166,20 +174,21 @@ class Message(Document):
           (msg, task)
         '''
         msg, state = cls._reserve_next(worker, queues)
-        if state is not None: return msg, state
+        if state is not None:
+            return msg, state
         return cls._reserve_ready(worker, queues)
 
     def retire(self):
         '''Retire the message.'''
         state = TaskState.m.find_and_modify(
-            { '_id': self.task_id },
-            update={ '$pull': { 'mq': self._id } },
+            {'_id': self.task_id},
+            update={'$pull': {'mq': self._id}},
             new=True)
         if state is not None and state.mq:
             next_msg = Message.m.find_and_modify(
-                { '_id': state.mq[0],
-                  's.status': { '$in': [ 'q1', 'q2' ] } },
-                update={ '$set': { 's.status': 'next' } },
+                {'_id': state.mq[0],
+                 's.status': {'$in': ['q1', 'q2']}},
+                update={'$set': {'s.status': 'next'}},
                 new=True)
             if next_msg:
                 self.channel.pub('send', next_msg._id)
@@ -190,13 +199,11 @@ class Message(Document):
         new_kwargs = self.kwargs
         new_kwargs.update(kwargs)
         self.m.set(
-            { 's.status': 'ready',
-              's.ts': datetime.utcnow(),
-              'args': dumps(new_args),
-              'kwargs': dumps(new_kwargs) })
+            {'s.status': 'ready',
+             's.ts': datetime.utcnow(),
+             'args': dumps(new_args),
+             'kwargs': dumps(new_kwargs)})
         self.channel.pub('send', self._id)
 
     args = pickle_property('_args')
     kwargs = pickle_property('_kwargs')
-
-
