@@ -205,8 +205,7 @@ class Message(Document):
         next_msg = None
         if state is not None and state.mq:
             next_msg = Message.m.find_and_modify(
-                {'_id': state.mq[0],
-                 's.status': {'$in': ['q1', 'q2']}},
+                {'_id': state.mq[0], 's.status': 'q2'},
                 update={'$set': {'s.w': self.s.w, 's.status': 'busy'}},
                 new=True)
         self.m.delete()
