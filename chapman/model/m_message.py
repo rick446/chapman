@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from cPickle import loads
 
 from mongotools.util import LazyProperty
 from mongotools.pubsub import Channel
@@ -7,7 +8,7 @@ from ming import Field
 from ming.declarative import Document
 from ming import schema as S
 
-from .m_base import doc_session, pickle_property, dumps
+from .m_base import doc_session, dumps
 from .m_task import TaskState
 
 log = logging.getLogger(__name__)
@@ -52,6 +53,8 @@ class Message(Document):
     slot = Field(str)
     _args = Field('args', S.Binary)
     _kwargs = Field('kwargs', S.Binary)
+    _send_args = Field('send_args', S.Binary)
+    _send_kwargs = Field('send_kwargs', S.Binary)
     schedule = Field('s', dict(
         status=S.String(if_missing='pending'),
         ts=S.DateTime(if_missing=datetime.utcnow),
@@ -212,15 +215,35 @@ class Message(Document):
         return next_msg
 
     def send(self, *args, **kwargs):
-        new_args = args + self.args
-        new_kwargs = self.kwargs
-        new_kwargs.update(kwargs)
         self.m.set(
             {'s.status': 'ready',
              's.ts': datetime.utcnow(),
-             'args': dumps(new_args),
-             'kwargs': dumps(new_kwargs)})
+             'send_args': dumps(args),
+             'send_kwargs': dumps(kwargs)})
         self.channel.pub('send', self._id)
 
-    args = pickle_property('_args')
-    kwargs = pickle_property('_kwargs')
+    @property
+    def args(self):
+        result = []
+        if self._send_args is not None:
+            result += loads(self._send_args)
+        if self._args is not None:
+            result += loads(self._args)
+        return tuple(result)
+
+    @args.setter
+    def args(self, value):
+        self._args = dumps(value)
+
+    @property
+    def kwargs(self):
+        result = {}
+        if self._kwargs is not None:
+            result.update(loads(self._kwargs))
+        if self._send_kwargs is not None:
+            result.update(loads(self._send_kwargs))
+        return result
+
+    @kwargs.setter
+    def kwargs(self, value):
+        self._kwargs = dumps(value)
