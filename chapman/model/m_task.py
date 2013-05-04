@@ -9,7 +9,7 @@ class TaskState(Document):
         name='chapman.task'
         session = doc_session
         indexes = [
-            [('parent_id', 1) ],
+            [('parent_id', 1), ('data.composite_position', 1) ],
             ]
 
     _id=Field(S.ObjectId)
@@ -36,4 +36,4 @@ class TaskState(Document):
             { '$set': {
                     'result': dumps(result),
                     'status': result.status } } )
-    
+
