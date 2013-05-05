@@ -5,21 +5,17 @@
 Options:
   -h --help              show this help message and exit
 """
-
-import os
-import time
-import socket
 import logging
 
 from docopt import docopt
-from pyramid.paster import bootstrap
+from pyramid.paster import bootstrap, setup_logging
 
 from chapman import model as M
 
 log = None
 
+
 def main(args):
-    args = docopt(__doc__)
     log.info('Starting chapman-init')
     db = M.doc_session.db
     if 'chapman.event' in db.collection_names():
@@ -28,9 +24,7 @@ def main(args):
 
 if __name__ == '__main__':
     args = docopt(__doc__)
+    setup_logging(args['<config>'])
     bootstrap(args['<config>'])
-    logging.config.fileConfig(
-        args['<config>'],
-        defaults=dict(here=os.getcwd()))
     log = logging.getLogger('chapman-init')
     main(args)

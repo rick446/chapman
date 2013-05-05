@@ -6,16 +6,13 @@ Options:
   -h --help                 show this help message and exit
 """
 
-import os
-import time
-import socket
 import logging
-import threading
 
 from docopt import docopt
-from pyramid.paster import bootstrap
+from pyramid.paster import bootstrap, setup_logging
 
 log = None
+
 
 def main(args):
     from chapman import model as M
@@ -23,9 +20,7 @@ def main(args):
 
 if __name__ == '__main__':
     args = docopt(__doc__)
-    logging.config.fileConfig(
-        args['<config>'],
-        defaults=dict(here=os.getcwd()))
+    setup_logging(args['<config>'])
     bootstrap(args['<config>'])
-    log = logging.getLogger('chapmand')
+    log = logging.getLogger('chapman-kill')
     main(args)

@@ -6,28 +6,26 @@ Options:
   -h --help              show this help message and exit
 """
 
-import os
-import re
 import time
 import logging
-from cPickle import loads
-from datetime import datetime
 
 from docopt import docopt
-from pyramid.paster import bootstrap
+from pyramid.paster import bootstrap, setup_logging
 
 from chapman import model as M
-from chapman import Task
 
 log = None
+
 
 def main(args):
     args = docopt(__doc__)
     log.info('Starting chapmanev')
     mainloop(args)
 
+
 def mainloop(args):
     chan = M.Message.channel.new_channel()
+
     @chan.sub('')
     def handler(chan, ev):
         msg = M.Message.m.get(_id=ev['data'])
@@ -38,12 +36,10 @@ def mainloop(args):
     while True:
         chan.handle_ready(raise_errors=True, await=True)
         time.sleep(0.1)
-       
+
 if __name__ == '__main__':
     args = docopt(__doc__)
+    setup_logging(args['<config>'])
     bootstrap(args['<config>'])
-    logging.config.fileConfig(
-        args['<config>'],
-        defaults=dict(here=os.getcwd()))
     log = logging.getLogger('chapmanev')
     main(args)

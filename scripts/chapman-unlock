@@ -8,16 +8,15 @@ Options:
   -h --help                 show this help message and exit
 """
 
-import os
 import time
-import socket
 import logging
 from datetime import datetime
 
 from docopt import docopt
-from pyramid.paster import bootstrap
+from pyramid.paster import bootstrap, setup_logging
 
 log = None
+
 
 def main(args):
     from chapman import model as M
@@ -25,14 +24,16 @@ def main(args):
     workers = get_live_workers(chan)
     workers.append(M.Message.missing_worker)
     q = M.Message.m.find(
-        { 's.status': {'$in': [ 'busy', 'q1', 'q2' ] },
-          's.w': { '$nin': workers } })
+        {'s.status': {'$in': ['busy', 'q1', 'q2']},
+         's.w': {'$nin': workers}})
     for msg in q:
         log.info('Unlock message %s', msg)
         msg.unlock()
 
+
 def get_live_workers(chan):
     workers = []
+
     @chan.sub('pong')
     def save_pongs(chan, msg):
         worker = msg['data']['worker']
@@ -40,7 +41,7 @@ def get_live_workers(chan):
         log.info('... %s', worker)
     log.info('Sending ping...')
     chan.pub('ping', {'ts_ping': datetime.utcnow(),
-                      'worker': '*' } )
+                      'worker': '*'})
     for x in range(10):
         time.sleep(0.1)
         chan.handle_ready(raise_errors=True, await=True)
@@ -49,11 +50,7 @@ def get_live_workers(chan):
 
 if __name__ == '__main__':
     args = docopt(__doc__)
-    logging.config.fileConfig(
-        args['<config>'],
-        defaults=dict(here=os.getcwd()))
-    log = logging.getLogger('chapmand')
-    log.info('Begin bootstrap')
+    setup_logging(args['<config>'])
+    log = logging.getLogger('chapman-unlock')
     bootstrap(args['<config>'], options=dict(noweb='true'))
-    log.info('Bootstrap complete')
     main(args)

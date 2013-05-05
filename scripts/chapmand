@@ -7,26 +7,23 @@ Options:
   -n,--name NAME            set the name of the worker
   -Q,--queues QUEUES        comma-separated list of queues [default: chapman]
   -c,--concurrency THREADS  number of threads to run [default: 1]
-  -s,--sleep SLEEP          seconds to sleep when there is no work [default: 1]
   -d,--debug                drop into a debugger on task errors?
 """
 
 import os
-import time
 import socket
 import logging
-import threading
 
 from docopt import docopt
-from pyramid.paster import bootstrap
+from pyramid.paster import bootstrap, setup_logging
 
 log = None
+
 
 def main(args):
     from chapman import worker
     name = args['--name']
     queues = args['--queues'].split(',')
-    sleep = int(args['--sleep'])
     debug = bool(args['--debug'])
     if name is None:
         name = 'chapmand-%s-%s' % (
@@ -37,15 +34,13 @@ def main(args):
         '%s:%s' % (name, os.getpid()),
         queues,
         num_threads=num_threads,
-        raise_errors=args['--debug'])
+        raise_errors=debug)
     w.start()
     w.run()
 
 if __name__ == '__main__':
     args = docopt(__doc__)
-    logging.config.fileConfig(
-        args['<config>'],
-        defaults=dict(here=os.getcwd()))
+    setup_logging(args['<config>'])
     bootstrap(args['<config>'])
     log = logging.getLogger('chapmand')
     main(args)

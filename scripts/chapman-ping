@@ -5,9 +5,7 @@
 Options:
   -h --help                 show this help message and exit
 """
-import os
 import time
-import socket
 import logging
 import threading
 from datetime import datetime
@@ -16,6 +14,7 @@ from docopt import docopt
 from pyramid.paster import bootstrap, setup_logging
 
 log = None
+
 
 def main(args):
     from chapman import model as M
@@ -30,12 +29,14 @@ def main(args):
     while True:
         log.info('ping...')
         chan.pub('ping', {'ts_ping': datetime.utcnow(),
-                          'worker': worker } )
+                          'worker': worker})
         time.sleep(1)
+
 
 def target():
     from chapman import model as M
     chan = M.Message.channel.new_channel()
+
     @chan.sub('pong')
     def handler(chan, msg):
         now = datetime.utcnow()
@@ -50,5 +51,5 @@ if __name__ == '__main__':
     args = docopt(__doc__)
     setup_logging(args['<config>'])
     bootstrap(args['<config>'], options=dict(noweb='true'))
-    log = logging.getLogger('chapmand')
+    log = logging.getLogger('chapman-ping')
     main(args)
