@@ -67,6 +67,14 @@ class Task(object):
     def refresh(self):
         self._state = TaskState.m.get(_id=self.id)
 
+    def wait(self):
+        self.refresh()
+        while self._state.status in ('pending', 'active'):
+            chan = Message.channel.new_channel()
+            for ev in chan.cursor(await=True):
+                break
+            self.refresh()
+
     def start(self, *args, **kwargs):
         '''Send a 'run' message & update state'''
         self._state.m.set(dict(status='active'))
@@ -90,6 +98,8 @@ class Task(object):
             self.forget()
         else:
             self.refresh()
+            chan = Message.channel.new_channel()
+            chan.pub('complete', self.id)
 
     def forget(self):
         self._state.m.delete()
