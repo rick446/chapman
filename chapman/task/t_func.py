@@ -51,7 +51,7 @@ class Function(Task):
         except exc.Suspend, s:
             self._state.m.set(dict(status=s.status))
         except Exception:
-            if self.raise_errors:
+            if self.raise_errors or self._state is None:
                 raise
             result = Result.failure(
                 self._state._id, 'Error in %r' % self, *sys.exc_info())
@@ -68,7 +68,7 @@ class Function(Task):
             args = msg.args + args
             kwargs.update(msg.kwargs)
         return args, kwargs
-            
+
     @classmethod
     def decorate(cls, name=None, **options):
         '''Decorator to turn a function into an actor'''
