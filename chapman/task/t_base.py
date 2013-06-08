@@ -97,17 +97,18 @@ class Task(object):
         return msg
 
     def complete(self, result):
-        TaskState.set_result(self.id, result)
-        if self._state.on_complete:
-            msg = Message.m.get(_id=self._state.on_complete)
+        state = self._state
+        TaskState.set_result(state._id, result)
+        if state.on_complete:
+            msg = Message.m.get(_id=state.on_complete)
             if msg is not None:
                 msg.send(result)
-        if self._state.options.ignore_result and result.status == 'success':
+        if state.options.ignore_result and result.status == 'success':
             self.forget()
         else:
             self.refresh()
             chan = Message.channel.new_channel()
-            chan.pub('complete', self.id)
+            chan.pub('complete', state._id)
 
     def forget(self):
         self._state.m.delete()
