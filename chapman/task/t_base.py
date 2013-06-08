@@ -1,3 +1,4 @@
+import time
 import logging
 
 from chapman.context import g
@@ -27,6 +28,10 @@ class Task(object):
     @property
     def id(self):
         return self._state._id
+
+    @property
+    def status(self):
+        return self._state.status
 
     @property
     def result(self):
@@ -67,9 +72,12 @@ class Task(object):
     def refresh(self):
         self._state = TaskState.m.get(_id=self.id)
 
-    def wait(self):
+    def wait(self, timeout=-1):
+        start = time.time()
         self.refresh()
         while self._state.status in ('pending', 'active'):
+            if timeout >= 0 and time.time() - start > timeout:
+                break
             chan = Message.channel.new_channel()
             for ev in chan.cursor(await=True):
                 break
