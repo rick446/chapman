@@ -10,7 +10,7 @@ Options:
 
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from docopt import docopt
 from pyramid.paster import bootstrap, setup_logging
@@ -33,16 +33,18 @@ def main(args):
 
 def get_live_workers(chan):
     workers = []
+    last_pong = [datetime.utcnow()]
 
     @chan.sub('pong')
     def save_pongs(chan, msg):
         worker = msg['data']['worker']
         workers.append(worker)
+        last_pong[0] = datetime.utcnow()
         log.info('... %s', worker)
     log.info('Sending ping...')
     chan.pub('ping', {'ts_ping': datetime.utcnow(),
                       'worker': '*'})
-    for x in range(10):
+    while datetime.utcnow() - last_pong[0] <= timedelta(seconds=10):
         time.sleep(0.1)
         chan.handle_ready(raise_errors=True, await=True)
     log.info('Waited long enough, unlocking messages now....')

@@ -25,6 +25,7 @@ class Worker(object):
         Function.raise_errors = raise_errors
         self._handler_threads = []
         self._num_active_messages = 0
+        self._send_event = threading.Event()
 
     def start(self):
         chan = M.Message.channel.new_channel()
@@ -62,16 +63,18 @@ class Worker(object):
             if msg['data'] in (self._name, '*'):
                 log.error('Received %r, exiting', msg)
                 sys.exit(0)
+
+        @chan.sub('send')
+        def handle_send(chan, msg):
+            self._send_event.set()
+
         while True:
             chan.handle_ready(await=True, raise_errors=True)
             time.sleep(0.2)
 
     def _waitfunc(self):
-        chan = M.Message.channel.new_channel()
-        chan.sub('send')
-        for event in chan.cursor(await=True):
-            return
-        time.sleep(self._sleep)
+        self._send_event.clear()
+        self._send_event.wait(1.0)
 
     def dispatcher(self, sem, q):
         log.info('Entering dispatcher thread')

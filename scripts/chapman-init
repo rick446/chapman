@@ -18,6 +18,7 @@ log = None
 def main(args):
     log.info('Starting chapman-init')
     db = M.doc_session.db
+    import ipdb; ipdb.set_trace();
     if 'chapman.event' in db.collection_names():
         db['chapman.event'].drop()
     M.Message.channel.ensure_channel()
@@ -25,6 +26,7 @@ def main(args):
 if __name__ == '__main__':
     args = docopt(__doc__)
     setup_logging(args['<config>'])
-    bootstrap(args['<config>'])
+    import ipdb; ipdb.set_trace();
+    bootstrap(args['<config>'], options=dict(noweb='true'))
     log = logging.getLogger('chapman-init')
     main(args)
