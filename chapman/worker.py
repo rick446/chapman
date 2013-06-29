@@ -28,8 +28,6 @@ class Worker(object):
         self._send_event = threading.Event()
 
     def start(self):
-        chan = M.Message.channel.new_channel()
-        chan.pub('start', self._name)
         sem = threading.Semaphore(self._num_threads)
         q = Queue()
         self._handler_threads = [
@@ -50,6 +48,7 @@ class Worker(object):
     def run(self):
         log.info('Entering event thread')
         chan = M.Message.channel.new_channel()
+        chan.pub('start', self._name)
 
         @chan.sub('ping')
         def handle_ping(chan, msg):

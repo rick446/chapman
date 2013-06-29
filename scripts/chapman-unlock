@@ -33,18 +33,21 @@ def main(args):
 
 def get_live_workers(chan):
     workers = []
-    last_pong = [datetime.utcnow()]
+    start = datetime.utcnow()
+    last_pong = [start]
+    last_interval = [timedelta(seconds=10)]
 
     @chan.sub('pong')
     def save_pongs(chan, msg):
         worker = msg['data']['worker']
         workers.append(worker)
         last_pong[0] = datetime.utcnow()
+        last_interval[0] = max(last_interval[0], last_pong[0] - start)
         log.info('... %s', worker)
     log.info('Sending ping...')
     chan.pub('ping', {'ts_ping': datetime.utcnow(),
                       'worker': '*'})
-    while datetime.utcnow() - last_pong[0] <= timedelta(seconds=10):
+    while datetime.utcnow() - last_pong[0] <= last_interval[0]:
         time.sleep(0.1)
         chan.handle_ready(raise_errors=True, await=True)
     log.info('Waited long enough, unlocking messages now....')
