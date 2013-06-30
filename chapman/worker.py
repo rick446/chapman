@@ -28,6 +28,7 @@ class Worker(object):
         self._send_event = threading.Event()
 
     def start(self):
+        M.doc_session.db.collection_names()  # force connection & auth
         sem = threading.Semaphore(self._num_threads)
         q = Queue()
         self._handler_threads = [
