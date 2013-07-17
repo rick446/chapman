@@ -5,7 +5,7 @@ import sys
 import time
 import logging
 import threading
-from Queue import Queue
+from Queue import Queue, Empty
 
 import model as M
 from .task import Task, Function
@@ -26,6 +26,7 @@ class Worker(object):
         self._handler_threads = []
         self._num_active_messages = 0
         self._send_event = threading.Event()
+        self._shutdown = False  # flag to indicate worker is shutting down
 
     def start(self):
         M.doc_session.db.collection_names()  # force connection & auth
@@ -64,36 +65,57 @@ class Worker(object):
                 log.error('Received %r, exiting', msg)
                 sys.exit(0)
 
+        @chan.sub('shutdown')
+        def handle_shutdown(chan, msg):
+            if msg['data'] in (self._name, '*'):
+                log.error('Received %r, shutting down gracefully', msg)
+                self._shutdown = True
+                raise StopIteration()
+
         @chan.sub('send')
         def handle_send(chan, msg):
             self._send_event.set()
 
         while True:
-            chan.handle_ready(await=True, raise_errors=True)
+            try:
+                chan.handle_ready(await=True, raise_errors=True)
+            except StopIteration:
+                break
             time.sleep(0.2)
 
+        for t in self._handler_threads:
+            t.join()
+
     def _waitfunc(self):
+        if self._shutdown:
+            raise StopIteration()
         self._send_event.clear()
         self._send_event.wait(1.0)
 
     def dispatcher(self, sem, q):
         log.info('Entering dispatcher thread')
-        while True:
+        while not self._shutdown:
             sem.acquire()
-            msg, state = _reserve_msg(self._name, self._qnames, self._waitfunc)
+            log.info('Trying to reserve....')
+            try:
+                msg, state = _reserve_msg(self._name, self._qnames, self._waitfunc)
+            except StopIteration:
+                break
             self._num_active_messages += 1
             log.info('Reserved %r (%s)',
                      msg, self._num_active_messages)
             q.put((msg, state))
+        log.info('Exiting dispatcher thread')
 
     def worker(self, sem, q):
         log.info('Entering worker thread')
-        while True:
+        while not self._shutdown:
             conn = M.doc_session.bind.bind.conn
             try:
-                msg, state = q.get()
-                if msg is None:
-                    break
+                msg, state = q.get(timeout=0.25)
+            except Empty:
+                continue
+            try:
                 log.info('Received %r', msg)
                 task = Task.from_state(state)
                 task.handle(msg, 25)
@@ -107,6 +129,7 @@ class Worker(object):
                     conn.end_request()
                 except Exception:
                     log.exception('Could not end request')
+        log.info('Exiting worker thread')
 
 
 def _reserve_msg(name, qnames, waitfunc):

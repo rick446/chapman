@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 """Usage:
-        chapman-kill <config> <name>
+        chapman-kill <config> <name> [options]
 
 Options:
   -h --help                 show this help message and exit
+  -e --event EVENT          event to send [default: kill]
 """
 
 import logging
@@ -16,7 +17,8 @@ log = None
 
 def main(args):
     from chapman import model as M
-    M.Message.channel.pub('kill', args['<name>'])
+    log.info('Sending %s to %s', args['--event'], args['<name>'])
+    M.Message.channel.pub(args['--event'], args['<name>'])
 
 if __name__ == '__main__':
     args = docopt(__doc__)
