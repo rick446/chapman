@@ -58,6 +58,7 @@ class Message(Document):
     schedule = Field('s', dict(
         status=S.String(if_missing='pending'),
         ts=S.DateTime(if_missing=datetime.utcnow),
+        after=S.DateTime(if_missing=datetime.utcnow),
         q=S.String(if_missing='chapman'),
         pri=S.Int(if_missing=10),
         w=S.String(if_missing=missing_worker)))
@@ -115,9 +116,11 @@ class Message(Document):
         If there is already a message locking the task, the state is set to q2.
         '''
         # Reserve message
+        now = datetime.utcnow()
         self = cls.m.find_and_modify(
             {'s.status': 'ready',
-             's.q': {'$in': queues}},
+             's.q': {'$in': queues},
+             's.after': {'$lte': now}},
             sort=[('s.pri', -1), ('s.ts', 1)],
             update={'$set': {'s.w': worker, 's.status': 'q1'}},
             new=True)
