@@ -5,3 +5,4 @@ from .t_group import Group
 from .t_barrier import Barrier
 from .t_pipeline import Pipeline
 from .t_chain import Chain
+from .t_periodic import Periodic

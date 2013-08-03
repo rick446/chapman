@@ -96,14 +96,11 @@ class Worker(object):
         log.info('Entering dispatcher thread')
         while not self._shutdown:
             sem.acquire()
-            log.info('Trying to reserve....')
             try:
                 msg, state = _reserve_msg(self._name, self._qnames, self._waitfunc)
             except StopIteration:
                 break
             self._num_active_messages += 1
-            log.info('Reserved %r (%s)',
-                     msg, self._num_active_messages)
             q.put((msg, state))
         log.info('Exiting dispatcher thread')
 

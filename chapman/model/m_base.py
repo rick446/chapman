@@ -10,22 +10,23 @@ log = logging.getLogger(__name__)
 
 
 def dumps(value):
-    if value is None: return value
+    if value is None:
+        return value
     return bson.Binary(pickle.dumps(value))
+
 
 def loads(value):
     return pickle.loads(value)
+
 
 class pickle_property(object):
     def __init__(self, pname):
         self._pname = pname
 
     def __get__(self, obj, cls=None):
-        if obj is None: return self
+        if obj is None:
+            return self
         return loads(getattr(obj, self._pname))
 
     def __set__(self, obj, value):
         setattr(obj, self._pname, dumps(value))
-                
-            
-    
