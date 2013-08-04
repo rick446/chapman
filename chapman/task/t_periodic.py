@@ -14,6 +14,12 @@ log = logging.getLogger(__name__)
 
 class Periodic(Composite):
 
+    def __repr__(self):
+        return '<Periodic %s (%s s) %s>' % (
+            self._state._id,
+            self._state.data.interval,
+            self._state.data.subtask_repr)
+
     @classmethod
     def schedule(cls, subtask, first, interval, *args, **kwargs):
         '''First is a timestamp, interval is in seconds'''
@@ -28,6 +34,14 @@ class Periodic(Composite):
         t._state.status = 'active'
         t._state.m.save()
         t._schedule_subtask(subtask)
+        return t
+
+    def cancel(self):
+        M.TaskState.m.remove(dict(parent_id=self._state._id))
+        M.Message.m.remove(
+            dict(task_id={'$in': [
+                self._state._id, self._state.data.subtask_id]}))
+        self._state.m.delete()
 
     def schedule_options(self):
         return dict(
