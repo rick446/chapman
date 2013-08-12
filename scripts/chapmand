@@ -20,7 +20,7 @@ from pyramid.paster import bootstrap, setup_logging
 log = None
 
 
-def main(args):
+def main(args, app_context):
     from chapman import worker
     name = args['--name']
     queues = args['--queues'].split(',')
@@ -34,13 +34,14 @@ def main(args):
         '%s:%s' % (name, os.getpid()),
         queues,
         num_threads=num_threads,
-        raise_errors=debug)
+        raise_errors=debug,
+        app_context=app_context)
     w.start()
     w.run()
 
 if __name__ == '__main__':
     args = docopt(__doc__)
     setup_logging(args['<config>'])
-    bootstrap(args['<config>'])
+    app_context = bootstrap(args['<config>'])
     log = logging.getLogger('chapmand')
-    main(args)
+    main(args, app_context)

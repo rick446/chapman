@@ -3,6 +3,7 @@ __all__ = ('g',)
 import threading
 from contextlib import contextmanager
 
+
 class Context(object):
     _local = threading.local()
 
@@ -23,6 +24,3 @@ class Context(object):
         self._local.message = None
 
 g = Context()
-
-
-    
