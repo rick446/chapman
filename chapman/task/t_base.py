@@ -90,6 +90,13 @@ class Task(object):
         msg.send()
         return msg
 
+    def schedule(self, after, *args, **kwargs):
+        '''Send a 'run' message & update state'''
+        self._state.m.set(dict(status='pending'))
+        msg = Message.new(self, 'run', args, kwargs, after=after)
+        msg.send()
+        return msg
+
     def link(self, task, slot, *args, **kwargs):
         '''Add an on_complete message with the given args'''
         msg = Message.n(task, slot, *args, **kwargs)

@@ -74,7 +74,7 @@ class Message(Document):
         return cls.new(task, slot, args, kwargs)
 
     @classmethod
-    def new(cls, task, slot, args, kwargs):
+    def new(cls, task, slot, args, kwargs, after=None):
         if args is None:
             args = ()
         if kwargs is None:
@@ -84,6 +84,8 @@ class Message(Document):
             task_repr=repr(task),
             slot=slot,
             s=task.schedule_options()))
+        if after is not None:
+            self.s.after = after
         self.args = args
         self.kwargs = kwargs
         self.m.insert()
