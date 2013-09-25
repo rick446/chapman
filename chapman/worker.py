@@ -100,7 +100,8 @@ class Worker(object):
         while not self._shutdown:
             sem.acquire()
             try:
-                msg, state = _reserve_msg(self._name, self._qnames, self._waitfunc)
+                msg, state = _reserve_msg(
+                    self._name, self._qnames, self._waitfunc)
             except StopIteration:
                 break
             self._num_active_messages += 1
@@ -130,6 +131,15 @@ class Worker(object):
                 except Exception:
                     log.exception('Could not end request')
         log.info('Exiting worker thread')
+
+    def handle_messages(self):
+        '''Handle messages until there are no more'''
+        while True:
+            msg, state = M.Message.reserve(self._name, self._qnames)
+            if msg is None:
+                return
+            task = Task.from_state(state)
+            task.handle(msg)
 
 
 def _reserve_msg(name, qnames, waitfunc):

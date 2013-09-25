@@ -18,7 +18,6 @@ log = None
 def main(args):
     log.info('Starting chapman-init')
     db = M.doc_session.db
-    import ipdb; ipdb.set_trace();
     if 'chapman.event' in db.collection_names():
         db['chapman.event'].drop()
     M.Message.channel.ensure_channel()
