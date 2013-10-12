@@ -1,3 +1,4 @@
+from random import random
 from ming import Field
 from ming.declarative import Document
 from ming import schema as S
@@ -14,7 +15,7 @@ class TaskState(Document):
             [('parent_id', 1), ('data.composite_position', 1)],
         ]
 
-    _id = Field(S.ObjectId)
+    _id = Field(int, lambda: hash(random()))
     type = Field(str)
     parent_id = Field(S.ObjectId, if_missing=None)
     status = Field(str, if_missing='pending')
@@ -26,7 +27,7 @@ class TaskState(Document):
         immutable=S.Bool(if_missing=False),
         ignore_result=S.Bool(if_missing=False)
     ))
-    on_complete = Field(S.ObjectId, if_missing=None)
+    on_complete = Field(int, if_missing=None)
     mq = Field([S.ObjectId()])
 
     result = pickle_property('_result')

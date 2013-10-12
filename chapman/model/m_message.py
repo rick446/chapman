@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from cPickle import loads
+from random import random
 
 from mongotools.util import LazyProperty
 from mongotools.pubsub import Channel
@@ -47,8 +48,8 @@ class Message(Document):
             [('s.q', 1), ('s.status', 1), ('s.pri', -1), ('s.ts', 1)],
             [('task_id', 1)],
         ]
-    _id = Field(S.ObjectId)
-    task_id = Field(S.ObjectId, if_missing=None)
+    _id = Field(int, if_missing=lambda: hash(random()))
+    task_id = Field(int, if_missing=None)
     task_repr = Field(str, if_missing=None)
     slot = Field(str)
     _args = Field('args', S.Binary)
