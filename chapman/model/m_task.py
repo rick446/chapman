@@ -17,7 +17,7 @@ class TaskState(Document):
 
     _id = Field(int, if_missing=lambda: hash(random()))
     type = Field(str)
-    parent_id = Field(S.ObjectId, if_missing=None)
+    parent_id = Field(int, if_missing=None)
     status = Field(str, if_missing='pending')
     _result = Field('result', S.Binary)
     data = Field({str: None})
