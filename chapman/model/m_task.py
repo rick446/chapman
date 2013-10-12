@@ -15,7 +15,7 @@ class TaskState(Document):
             [('parent_id', 1), ('data.composite_position', 1)],
         ]
 
-    _id = Field(int, lambda: hash(random()))
+    _id = Field(int, if_missing=lambda: hash(random()))
     type = Field(str)
     parent_id = Field(S.ObjectId, if_missing=None)
     status = Field(str, if_missing='pending')
