@@ -28,7 +28,7 @@ class TaskState(Document):
         ignore_result=S.Bool(if_missing=False)
     ))
     on_complete = Field(int, if_missing=None)
-    mq = Field([S.ObjectId()])
+    mq = Field([int])
 
     result = pickle_property('_result')
 
