@@ -1,4 +1,4 @@
-from random import random
+from random import getrandbits
 from ming import Field
 from ming.declarative import Document
 from ming import schema as S
@@ -15,7 +15,7 @@ class TaskState(Document):
             [('parent_id', 1), ('data.composite_position', 1)],
         ]
 
-    _id = Field(int, if_missing=lambda: hash(random()))
+    _id = Field(int, if_missing=lambda: getrandbits(63))
     type = Field(str)
     parent_id = Field(int, if_missing=None)
     status = Field(str, if_missing='pending')
