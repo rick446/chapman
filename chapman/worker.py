@@ -52,6 +52,8 @@ class Worker(object):
 
     def run(self):
         log.info('Entering event thread')
+        conn = M.doc_session.bind.bind.conn
+        conn.start_request()
         chan = M.Message.channel.new_channel()
         chan.pub('start', self._name)
 
@@ -84,7 +86,7 @@ class Worker(object):
                 chan.handle_ready(await=True, raise_errors=True)
             except StopIteration:
                 break
-            time.sleep(0.2)
+            time.sleep(self._sleep)
 
         for t in self._handler_threads:
             t.join()
@@ -109,13 +111,14 @@ class Worker(object):
         log.info('Exiting dispatcher thread')
 
     def worker(self, sem, q):
-        log.info('Entering worker thread')
+        log.info('Entering chapmand worker thread')
         while not self._shutdown:
             conn = M.doc_session.bind.bind.conn
             try:
                 msg, state = q.get(timeout=0.25)
             except Empty:
                 continue
+            conn.end_request()
             try:
                 log.info('Received %r', msg)
                 task = Task.from_state(state)
@@ -130,7 +133,7 @@ class Worker(object):
                     conn.end_request()
                 except Exception:
                     log.exception('Could not end request')
-        log.info('Exiting worker thread')
+        log.info('Exiting chapmand worker thread')
 
     def handle_messages(self):
         '''Handle messages until there are no more'''

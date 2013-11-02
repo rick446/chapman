@@ -93,15 +93,14 @@ class Message(Document):
         return self
 
     @classmethod
-    def _reserve_next(cls, worker, queues):
+    def _reserve_next(cls, worker, qspec):
         '''Reserves a message in 'next' status.
 
         'next' messages can be immediately worked on, since they are guaranteed
         to be the next message to obtain the task lock.
         '''
         self = cls.m.find_and_modify(
-            {'s.status': 'next',
-             's.q': {'$in': queues}},
+            {'s.status': 'next', 's.q': qspec},
             sort=[('s.pri', -1), ('s.ts', 1)],
             update={'$set': {'s.w': worker, 's.status': 'busy'}},
             new=True)
@@ -111,7 +110,7 @@ class Message(Document):
         return self, state
 
     @classmethod
-    def _reserve_ready(cls, worker, queues):
+    def _reserve_ready(cls, worker, qspec):
         '''Reserves a message in 'ready' status.
 
         Ready messages must move through q1 status before they become
@@ -121,9 +120,7 @@ class Message(Document):
         # Reserve message
         now = datetime.utcnow()
         self = cls.m.find_and_modify(
-            {'s.status': 'ready',
-             's.q': {'$in': queues},
-             's.after': {'$lte': now}},
+            {'s.status': 'ready', 's.q': qspec, 's.after': {'$lte': now}},
             sort=[('s.pri', -1), ('s.ts', 1)],
             update={'$set': {'s.w': worker, 's.status': 'q1'}},
             new=True)
@@ -182,10 +179,18 @@ class Message(Document):
         - If a message was reserved, and the task was locked, return
           (msg, task)
         '''
-        msg, state = cls._reserve_next(worker, queues)
+        qspec = {'$in': queues}
+        return cls.reserve_qspec(worker, qspec)
+
+    @classmethod
+    def reserve_qspec(cls, worker, qspec):
+        '''Reserve according to a queue specification to allow for
+        more interesting queue topologies
+        '''
+        msg, state = cls._reserve_next(worker, qspec)
         if state is not None:
             return msg, state
-        return cls._reserve_ready(worker, queues)
+        return cls._reserve_ready(worker, qspec)
 
     def retire(self):
         '''Retire the message.'''
