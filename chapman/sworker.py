@@ -7,7 +7,6 @@ from random import randint
 
 from paste.deploy.converters import asint
 
-from ming.session import Session
 from mongotools.pubsub import Channel
 
 import model as M
@@ -27,18 +26,20 @@ class ShardWorker(object):
         It looks for things on queues starting with 'shard:',
         strips the "shard:" prefix, and redispatches to one of
         its sub-sessions.
+
+        It also looks for things on the shard queues starting with 'unshard:'
+        targeted at proxy tasks and forwards those
         '''
         self._name = name
         g.app_context = app_context
         settings = app_context['registry'].settings
-        snames = settings['chapmans.sessions'].split(',')
-        self._sessions = [Session.by_name(sname) for sname in snames]
+        self._sessions = [shard.session() for shard in M.Shard.m.find()]
         self._sleep = asint(settings.get(
             'chapman.sleep', '200')) / 1000.0
 
         self._send_event = threading.Event()
         self._shutdown = False  # flag to indicate worker is shutting down
-        self._session_id = randint(0, len(self._sessions))
+        self._shard_id = randint(0, len(self._sessions))
 
     def start(self):
         M.doc_session.db.collection_names()  # force connection & auth
@@ -79,6 +80,14 @@ class ShardWorker(object):
         def handle_send(chan, msg):
             self._send_event.set()
 
+        @chan.sub('configure')
+        def handle_configure(chan, msg):
+            self._sessions = [shard.session() for shard in M.Shard.m.find()]
+            log.info('Reconfigure chapmans')
+            log.info('  Shards:')
+            for sess in self._sessions:
+                log.info('   - %s', sess.db)
+
         while True:
             try:
                 chan.handle_ready(await=True, raise_errors=True)
@@ -90,7 +99,7 @@ class ShardWorker(object):
 
     def dispatcher(self):
         log.info('Entering chapmans dispatcher thread')
-        log.info('  Sub-sessions:')
+        log.info('  Shards:')
         for sess in self._sessions:
             log.info('   - %s', sess.db)
         while not self._shutdown:
@@ -106,17 +115,24 @@ class ShardWorker(object):
         log.info('Exiting chapmans dispatcher thread')
 
     def _dispatch(self, msg, state):
-        sid = self._session_id % len(self._sessions)
-        self._session_id = (sid+1) % len(self._sessions)
-        sess = self._sessions[sid]
+        sid = self._session_id % len(self._shards)
+        self._shard_id = (sid+1) % len(self._shards)
+        sess = self._sessions[self._shard_id]
+        log.info('Dispatch %s to %s', msg, sess.db)
+        assert state.on_complete is None, "Can't handle sharded on_complete"
+        assert state.options.ignore_result, "Can't handle sharded results"
         channel = Channel(sess.db, 'chapman.event')
         channel.ensure_channel()
 
         # Strip the queue prefix
-        state.options.queue = state.options.queue.split(':', 1)[-1]
-        msg.s.q = msg.s.q.split(':', 1)[-1]
+        qname = state.options.queue.split(':', 1)[-1]
+        state.options.queue = msg.s.q = qname
 
         # Create the taskstate and msg in the subsession
         sess.insert(state)
         sess.insert(msg)
         channel.pub('send', msg._id)
+
+
+
+

@@ -21,7 +21,7 @@ def main(args, app_context):
     from chapman import sworker
     name = args['--name']
     if name is None:
-        name = 'chapmand-%s-%s' % (
+        name = 'chapmans-%s-%s' % (
             socket.getfqdn(), os.getpid())
     log.info('Starting chapmans %s', name)
     w = sworker.ShardWorker(
