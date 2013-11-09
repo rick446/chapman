@@ -1,4 +1,4 @@
-from .t_base import Task
+from .t_base import Task, Result
 from .t_func import Function
 from .t_composite import Composite
 from .t_group import Group
