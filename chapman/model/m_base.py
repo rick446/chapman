@@ -6,6 +6,7 @@ import bson
 from ming import Session
 
 doc_session = Session.by_name('chapman')
+parent_session = Session.by_name('chapmans_parent')
 log = logging.getLogger(__name__)
 
 

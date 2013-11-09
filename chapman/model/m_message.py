@@ -9,8 +9,8 @@ from ming import Field
 from ming.declarative import Document
 from ming import schema as S
 
-from .m_base import doc_session, dumps
-from .m_task import TaskState
+from .m_base import doc_session, parent_session, dumps
+from .m_task import TaskState, ParentTaskState
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ class ChannelProxy(object):
 class Message(Document):
     missing_worker = '-' * 10
     channel = ChannelProxy('chapman.event')
+    _TaskState = TaskState
 
     class __mongometa__:
         name = 'chapman.message'
@@ -106,7 +107,7 @@ class Message(Document):
             new=True)
         if self is None:
             return None, None
-        state = TaskState.m.get(_id=self.task_id)
+        state = cls._TaskState.m.get(_id=self.task_id)
         return self, state
 
     @classmethod
@@ -127,7 +128,7 @@ class Message(Document):
         if self is None:
             return None, None
         # Enqueue on TaskState
-        state = TaskState.m.find_and_modify(
+        state = cls._TaskState.m.find_and_modify(
             {'_id': self.task_id},
             update={'$push': {'mq': self._id}},
             new=True)
@@ -148,7 +149,7 @@ class Message(Document):
     def unlock(self):
         '''Make a message ready for processing'''
         # Dequeue the message from any taskstate it's on
-        state = TaskState.m.find_and_modify(
+        state = self._TaskState.m.find_and_modify(
             {'_id': self.task_id},
             update={'$pull': {'mq': self._id}},
             new=True)
@@ -156,13 +157,13 @@ class Message(Document):
         # activated.
         if state and state.mq:
             next_id = state.mq[0]
-            r = Message.m.collection.update(
+            r = self.__class__.m.collection.update(
                 {'_id': next_id, 's.status': 'q2'},
                 {'$set': {'s.status': 'next'}})
             if r['updatedExisting']:
                 self.channel.pub('send', next_id)
         # Re-dispatch this message
-        Message.m.update_partial(
+        self.__class__.m.update_partial(
             {'_id': self._id},
             {'$set': {
                 's.status': 'ready',
@@ -194,7 +195,7 @@ class Message(Document):
 
     def retire(self):
         '''Retire the message.'''
-        state = TaskState.m.find_and_modify(
+        state = self._TaskState.m.find_and_modify(
             {'_id': self.task_id},
             update={'$pull': {'mq': self._id}},
             new=True)
@@ -212,7 +213,7 @@ class Message(Document):
         '''Retire the message. If there is a message enqueued,
         reserve and return it. Otherwise return None.
         '''
-        state = TaskState.m.find_and_modify(
+        state = self._TaskState.m.find_and_modify(
             {'_id': self.task_id},
             update={'$pull': {'mq': self._id}},
             new=True)
@@ -258,3 +259,13 @@ class Message(Document):
     @kwargs.setter
     def kwargs(self, value):
         self._kwargs = dumps(value)
+
+
+class ParentMessage(Message):
+    missing_worker = '-' * 10
+    channel = ChannelProxy('chapman.event')
+    _TaskState = ParentTaskState
+
+    class __mongometa__:
+        name = 'chapman.message'
+        session = parent_session

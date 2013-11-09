@@ -3,7 +3,7 @@ from ming import Field
 from ming.declarative import Document
 from ming import schema as S
 
-from .m_base import doc_session, dumps, pickle_property
+from .m_base import doc_session, parent_session, dumps, pickle_property
 
 
 class TaskState(Document):
@@ -39,3 +39,10 @@ class TaskState(Document):
             {'$set': {
                 'result': dumps(result),
                 'status': result.status}})
+
+
+class ParentTaskState(TaskState):
+
+    class __mongometa__:
+        name = 'chapman.task'
+        session = parent_session

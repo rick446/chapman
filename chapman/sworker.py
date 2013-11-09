@@ -3,136 +3,168 @@ import sys
 import time
 import logging
 import threading
-from random import randint
 
 from paste.deploy.converters import asint
-
-from mongotools.pubsub import Channel
 
 import model as M
 from .context import g
 
 log = logging.getLogger(__name__)
-re_shard_qname = re.compile(r'^shard:')
 
 
 class ShardWorker(object):
     '''Sharded worker'''
 
     def __init__(self, name, app_context):
-        '''Sharded Worker - this worker reserves messages
-        and then redispatches them on other ming sessions.
+        '''Sharded Worker - this worker reserves messages from a
+        parent instance and then redispatches it locally. It also
+        reserves messages locally and redispatches them to the
+        parent instance.
 
-        It looks for things on queues starting with 'shard:',
-        strips the "shard:" prefix, and redispatches to one of
-        its sub-sessions.
+        In the parent, any queue starting with 'shard:' will have the
+        prefix stripped and be redispatched to the local instance.
 
-        It also looks for things on the shard queues starting with 'unshard:'
-        targeted at proxy tasks and forwards those
+        In the local instance, any queue starting with 'unshard:' will
+        have the prefix stripped and be redispatched to the parent
+        instance.
         '''
-        self._name = name
+        self.name = name
         g.app_context = app_context
         settings = app_context['registry'].settings
-        self._sessions = [shard.session() for shard in M.Shard.m.find()]
-        self._sleep = asint(settings.get(
+
+        self.sleep = asint(settings.get(
             'chapman.sleep', '200')) / 1000.0
 
-        self._send_event = threading.Event()
         self._shutdown = False  # flag to indicate worker is shutting down
-        self._shard_id = randint(0, len(self._sessions))
+        self._model = dict(
+            parent=dict(
+                Message=M.ParentMessage,
+                TaskState=M.ParentTaskState),
+            local=dict(
+                Message=M.Message,
+                TaskState=M.TaskState))
 
     def start(self):
         M.doc_session.db.collection_names()  # force connection & auth
-        self._dispatcher = threading.Thread(
-            name='dispatch',
-            target=self.dispatcher)
-        self._dispatcher.setDaemon(True)
-        self._dispatcher.start()
+        parent = self._model['parent']
+        local = self._model['local']
+        d_shard = DispatchThread(self, 'shard:', parent, local)
+        d_unshard = DispatchThread(self, 'unshard:', local, parent)
+        e_shard = EventThread(self, d_shard, parent['Message'])
+        e_unshard = EventThread(self, d_unshard, local['Message'])
+        self._dispatch_threads = [d_shard, d_unshard]
+        self._event_threads = [e_shard, e_unshard]
+        self._threads = self._dispatch_threads + self._event_threads
+        for t in self._threads:
+            t.setDaemon(True)
+            t.start()
+
+    def shutdown(self):
+        for t in self._dispatch_threads:
+            t.shutdown()
 
     def run(self):
-        log.info('Entering event thread')
-        conn = M.doc_session.bind.bind.conn
-        conn.start_request()
-        chan = M.Message.channel.new_channel()
-        chan.pub('start', self._name)
-
-        @chan.sub('ping')
-        def handle_ping(chan, msg):
-            data = msg['data']
-            if data['worker'] in (self._name, '*'):
-                data['worker'] = self._name
-                chan.pub('pong', data)
-
-        @chan.sub('kill')
-        def handle_kill(chan, msg):
-            if msg['data'] in (self._name, '*'):
-                log.error('Received %r, exiting', msg)
-                sys.exit(0)
-
-        @chan.sub('shutdown')
-        def handle_shutdown(chan, msg):
-            if msg['data'] in (self._name, '*'):
-                log.error('Received %r, shutting down gracefully', msg)
-                self._shutdown = True
-                raise StopIteration()
-
-        @chan.sub('send')
-        def handle_send(chan, msg):
-            self._send_event.set()
-
-        @chan.sub('configure')
-        def handle_configure(chan, msg):
-            self._sessions = [shard.session() for shard in M.Shard.m.find()]
-            log.info('Reconfigure chapmans')
-            log.info('  Shards:')
-            for sess in self._sessions:
-                log.info('   - %s', sess.db)
-
         while True:
-            try:
-                chan.handle_ready(await=True, raise_errors=True)
-            except StopIteration:
+            for t in self._threads:
+                if t.is_alive():
+                    break
+            else:
                 break
-            time.sleep(self._sleep)
+            time.sleep(10)
 
-        self._dispatcher.join()
 
-    def dispatcher(self):
-        log.info('Entering chapmans dispatcher thread')
-        log.info('  Shards:')
-        for sess in self._sessions:
-            log.info('   - %s', sess.db)
+class EventThread(threading.Thread):
+
+    def __init__(self, worker, dispatcher, Message):
+        self._worker = worker
+        self._dispatcher = dispatcher
+        self._Message = Message
+        super(EventThread, self).__init__()
+
+    def run(self):
+        db = self._Message.m.session.db
+        conn = db.connection
+        log.info('Entering event thread on %s', db)
+        conn.start_request()
+        chan = self._Message.channel.new_channel()
+        chan.pub('start', self._worker.name)
+        chan.sub('ping', self._handle_ping)
+        chan.sub('kill', self._handle_kill)
+        chan.sub('shutdown', self._handle_shutdown)
+        chan.sub('send', self._handle_send)
+
+        while self._dispatcher.is_alive():
+            chan.handle_ready(await=True, raise_errors=True)
+            time.sleep(self._worker.sleep)
+
+    def _handle_ping(self, chan, msg):
+        data = msg['data']
+        if data['worker'] in (self._worker.name, '*'):
+            data['worker'] = self._worker.name
+            chan.pub('pong', data)
+
+    def _handle_kill(self, chan, msg):
+        if msg['data'] in (self._worker.name, '*'):
+            log.error('Received %r, exiting', msg)
+            sys.exit(0)
+
+    def _handle_shutdown(self, chan, msg):
+        if msg['data'] in (self._worker.name, '*'):
+            log.error('Received %r, shutting down gracefully', msg)
+            self.worker.shutdown()
+
+    def _handle_send(self, chan, msg):
+        self._dispatcher.notify()
+
+
+class DispatchThread(threading.Thread):
+
+    def __init__(self, worker, prefix, source, sink):
+        self._worker = worker
+        self._prefix = prefix
+        self._source = source
+        self._sink = sink
+        self._event = threading.Event()
+        self._shutdown = False
+        self._re_qname = re.compile(r'^%s' % prefix)
+        super(DispatchThread, self).__init__()
+
+    def run(self):
+        SourceMessage = self._source['Message']
         while not self._shutdown:
-            msg, state = M.Message.reserve_qspec(
-                self._name, re_shard_qname)
+            msg, state = SourceMessage.reserve_qspec(
+                self._worker.name, self._re_qname)
             if msg is None:
-                self._send_event.clear()
-                self._send_event.wait(self._sleep)
-                continue
+                self._event.clear()
+                self._event.wait(self._worker.sleep)
             if state is None:
                 continue
-            self._dispatch(msg, state)
-        log.info('Exiting chapmans dispatcher thread')
+            self._handle(msg, state)
 
-    def _dispatch(self, msg, state):
-        sid = self._session_id % len(self._shards)
-        self._shard_id = (sid+1) % len(self._shards)
-        sess = self._sessions[self._shard_id]
-        log.info('Dispatch %s to %s', msg, sess.db)
+    def notify(self):
+        self._event.set()
+
+    def shutdown(self):
+        self._shutdown = True
+
+    def _handle(self, msg, state):
+        log.info('Dispatch %s', msg)
         assert state.on_complete is None, "Can't handle sharded on_complete"
         assert state.options.ignore_result, "Can't handle sharded results"
-        channel = Channel(sess.db, 'chapman.event')
-        channel.ensure_channel()
 
-        # Strip the queue prefix
-        qname = state.options.queue.split(':', 1)[-1]
+        # Strip the prefix
+        qname = state.options.queue[len(self._prefix):]
         state.options.queue = msg.s.q = qname
+        msg.s.status = 'ready'
+        msg.s.w = M.Message.missing_worker
 
         # Create the taskstate and msg in the subsession
-        sess.insert(state)
-        sess.insert(msg)
-        channel.pub('send', msg._id)
+        sink_msg = self._sink['Message'].make(msg)
+        sink_state = self._sink['TaskState'].make(state)
+        sink_state.m.insert()
+        sink_msg.m.insert()
+        sink_msg.channel.pub('send', sink_msg._id)
 
-
-
-
+        # Delete the original message/state
+        msg.m.delete()
+        state.m.delete()
