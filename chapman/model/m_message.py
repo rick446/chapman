@@ -17,8 +17,12 @@ log = logging.getLogger(__name__)
 
 class ChannelProxy(object):
 
-    def __init__(self, name):
+    def __init__(self, name, session=None):
         self._name = name
+        if session is None:
+            self._session = doc_session
+        else:
+            self._session = session
 
     @LazyProperty
     def _channel(self):
@@ -33,7 +37,7 @@ class ChannelProxy(object):
         return self._channel
 
     def new_channel(self):
-        return Channel(doc_session.db, self._name)
+        return Channel(self._session.db, self._name)
 
 
 class Message(Document):
@@ -263,7 +267,7 @@ class Message(Document):
 
 class ParentMessage(Message):
     missing_worker = '-' * 10
-    channel = ChannelProxy('chapman.event')
+    channel = ChannelProxy('chapman.event', parent_session)
     _TaskState = ParentTaskState
 
     class __mongometa__:
