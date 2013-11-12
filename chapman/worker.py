@@ -7,6 +7,8 @@ import logging
 import threading
 from Queue import Queue, Empty
 
+from paste.deploy.converters import asint
+
 import model as M
 from .task import Task, Function
 from .context import g
@@ -17,13 +19,15 @@ log = logging.getLogger(__name__)
 class Worker(object):
 
     def __init__(self, name, qnames,
-                 num_threads=1, sleep=1,
+                 num_threads=1,
                  raise_errors=False,
                  app_context=None):
         self._name = name
         self._qnames = qnames
         self._num_threads = num_threads
-        self._sleep = sleep
+        settings = app_context['registry'].settings
+        self._sleep = asint(settings.get(
+            'chapman.sleep', '200')) / 1000.0
         Function.raise_errors = raise_errors
         self._handler_threads = []
         self._num_active_messages = 0
@@ -95,7 +99,7 @@ class Worker(object):
         if self._shutdown:
             raise StopIteration()
         self._send_event.clear()
-        self._send_event.wait(1.0)
+        self._send_event.wait(self._sleep)
 
     def dispatcher(self, sem, q):
         log.info('Entering dispatcher thread')
@@ -113,26 +117,20 @@ class Worker(object):
     def worker(self, sem, q):
         log.info('Entering chapmand worker thread')
         while not self._shutdown:
-            conn = M.doc_session.bind.bind.conn
             try:
                 msg, state = q.get(timeout=0.25)
             except Empty:
                 continue
-            conn.end_request()
             try:
                 log.info('Received %r', msg)
                 task = Task.from_state(state)
                 task.handle(msg, 25)
             except Exception:
                 log.exception('Unexpected error in worker thread')
-                time.sleep(1)
+                time.sleep(self._sleep)
             finally:
                 self._num_active_messages -= 1
                 sem.release()
-                try:
-                    conn.end_request()
-                except Exception:
-                    log.exception('Could not end request')
         log.info('Exiting chapmand worker thread')
 
     def handle_messages(self):
