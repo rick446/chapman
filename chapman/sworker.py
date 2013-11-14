@@ -173,6 +173,5 @@ class DispatchThread(threading.Thread):
 
         if self._prob:
             num_tasks = M.TaskState.m.find().count()
-            max_sleep_time = 1.0 / (num_tasks / 100.0)
-            sleep_time = random.random() * max_sleep_time
+            sleep_time = random.random() * num_tasks
             time.sleep(sleep_time)
