@@ -174,4 +174,5 @@ class DispatchThread(threading.Thread):
         if self._prob:
             num_tasks = M.TaskState.m.find().count()
             sleep_time = random.random() * num_tasks
+            log.info("Backoff for %.0f seconds", sleep_time)
             time.sleep(sleep_time)
