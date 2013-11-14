@@ -1,6 +1,7 @@
 import re
 import sys
 import time
+import random
 import logging
 import threading
 
@@ -48,7 +49,7 @@ class ShardWorker(object):
         M.doc_session.db.collection_names()  # force connection & auth
         parent = self._model['parent']
         local = self._model['local']
-        d_shard = DispatchThread(self, 'shard:', parent, local)
+        d_shard = DispatchThread(self, 'shard:', parent, local, True)
         d_unshard = DispatchThread(self, 'unshard:', local, parent)
         e_shard = EventThread(self, d_shard, parent['Message'])
         e_unshard = EventThread(self, d_unshard, local['Message'])
@@ -119,11 +120,12 @@ class EventThread(threading.Thread):
 
 class DispatchThread(threading.Thread):
 
-    def __init__(self, worker, prefix, source, sink):
+    def __init__(self, worker, prefix, source, sink, prob=False):
         self._worker = worker
         self._prefix = prefix
         self._source = source
         self._sink = sink
+        self._prob = prob
         self._event = threading.Event()
         self._shutdown = False
         self._re_qname = re.compile(r'^%s' % prefix)
@@ -168,3 +170,9 @@ class DispatchThread(threading.Thread):
         # Delete the original message/state
         msg.m.delete()
         state.m.delete()
+
+        if self._prob:
+            num_tasks = M.TaskState.m.find().count()
+            max_sleep_time = 1.0 / (num_tasks / 100.0)
+            sleep_time = random.random() * max_sleep_time
+            time.sleep(sleep_time)
