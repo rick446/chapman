@@ -20,9 +20,11 @@ class Composite(Task):
 
     def append(self, st, start=False):
         position = self._state.data.n_subtask
-        st.link(
-            self, 'retire_subtask', position,
-            **{'s.pri': st._state.options['priority'] + 1})
+        msg = st.link(self, 'retire_subtask', position)
+        msg.s.pri = st._state.options['priority'] + 1
+        msg.m.update_partial(
+            {'_id': msg._id},
+            {'$set': {'s.pri', msg.s.pri}})
         st._state.m.set({
             'parent_id': self.id,
             'data.composite_position': position,
