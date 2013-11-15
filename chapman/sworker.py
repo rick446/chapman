@@ -1,7 +1,6 @@
 import re
 import sys
 import time
-import random
 import logging
 import threading
 
@@ -49,7 +48,7 @@ class ShardWorker(object):
         M.doc_session.db.collection_names()  # force connection & auth
         parent = self._model['parent']
         local = self._model['local']
-        d_shard = DispatchThread(self, 'shard:', parent, local, True)
+        d_shard = DispatchThread(self, 'shard:', parent, local, throttle=True)
         d_unshard = DispatchThread(self, 'unshard:', local, parent)
         e_shard = EventThread(self, d_shard, parent['Message'])
         e_unshard = EventThread(self, d_unshard, local['Message'])
@@ -120,12 +119,12 @@ class EventThread(threading.Thread):
 
 class DispatchThread(threading.Thread):
 
-    def __init__(self, worker, prefix, source, sink, prob=False):
+    def __init__(self, worker, prefix, source, sink, throttle=False):
         self._worker = worker
         self._prefix = prefix
         self._source = source
         self._sink = sink
-        self._prob = prob
+        self._throttle = throttle
         self._event = threading.Event()
         self._shutdown = False
         self._re_qname = re.compile(r'^%s' % prefix)
@@ -133,7 +132,14 @@ class DispatchThread(threading.Thread):
 
     def run(self):
         SourceMessage = self._source['Message']
+        SinkMessage = self._sink['Message']
         while not self._shutdown:
+            if self._throttle:
+                amsg = SinkMessage.m.collection.find_one(
+                    {'s.status': 'ready'}, {'_id': 1})
+                if amsg is not None:
+                    time.sleep(self._worker.sleep)
+                    continue
             msg, state = SourceMessage.reserve_qspec(
                 self._worker.name, self._re_qname)
             if msg is None:
@@ -170,9 +176,3 @@ class DispatchThread(threading.Thread):
         # Delete the original message/state
         msg.m.delete()
         state.m.delete()
-
-        if self._prob:
-            num_tasks = M.TaskState.m.find().count()
-            sleep_time = random.random() * num_tasks
-            log.info("Backoff for %.0f seconds", sleep_time)
-            time.sleep(sleep_time)
