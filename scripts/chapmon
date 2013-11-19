@@ -8,48 +8,104 @@ Options:
 
 import time
 import logging
+from collections import defaultdict
 
 from docopt import docopt
 from pyramid.paster import bootstrap, setup_logging
+
+from ming import create_datastore
 
 log = None
 
 
 def main(args, app_context):
     from chapman import model as M
+    db_names = {}
+    for k, v in app_context['registry'].settings.items():
+        if k.startswith('chapmon.'):
+            name = k.split('.', 1)[-1]
+            ds = create_datastore(v)
+            db_names[name] = ds.db
+    if not db_names:
+        db_names = dict(chapman=M.doc_session.db)
+    monitor_dbs(**db_names)
 
+
+def monitor_dbs(**db_names):
+    log.info('Monitoring databases: ')
+    for name, uri in sorted(db_names.items()):
+        log.info('-%20s: %s', name, uri)
     while True:
-        task_stat_cols = M.TaskState.m.collection.distinct('status')
-        msg_stat_cols = M.Message.m.collection.distinct('s.status')
-        all_cols = task_stat_cols + msg_stat_cols
-        l_fmt = ['%10s'] * len(task_stat_cols)
-        l_fmt.append('|')
-        l_fmt += ['%10s'] * len(msg_stat_cols)
-        fmt = ' '.join(l_fmt)
-        log.info(fmt, *all_cols)
-        for x in range(10):
-            stats = M.TaskState.m.collection.map_reduce(
-                'function(){emit({s:this.status}, 1)}',
-                'function(key, values) {return Array.sum(values);}',
-                {'inline': 1})
-            results = dict(
-                (doc['_id']['s'], doc['value'])
-                for doc in stats['results'])
-            ts_vals = [
-                results.get(cname, 0)
-                for cname in task_stat_cols]
-            stats = M.Message.m.collection.map_reduce(
-                'function(){emit({s:this.s.status}, 1)}',
-                'function(key, values) {return Array.sum(values);}',
-                {'inline': 1})
-            results = dict(
-                (doc['_id']['s'], doc['value'])
-                for doc in stats['results'])
-            msg_vals = [
-                results.get(cname, 0)
-                for cname in msg_stat_cols]
-            log.info(fmt, *(ts_vals + msg_vals))
+        fmt, tcols, mcols = get_format_cols(db_names.values())
+        for x in range(5):
+            t_tstats = defaultdict(int)
+            t_mstats = defaultdict(int)
+            db_args_lines = []
+            for db_name, db in sorted(db_names.items()):
+                try:
+                    tstats = task_stats(db)
+                    mstats = message_stats(db)
+                except Exception as err:
+                    log.info('-%20s: ERROR: %s', db_name, err)
+                tvals = [tstats.get(cname, 0) for cname in tcols]
+                mvals = [mstats.get(cname, 0) for cname in mcols]
+                db_args_lines.append([db_name] + tvals + mvals)
+                for k, v in tstats.items():
+                    t_tstats[k] += v
+                for k, v in mstats.items():
+                    t_mstats[k] += v
+            log.info('%21s:' + fmt, 'name', *(tcols + mcols))
+            for db_args in db_args_lines:
+                log.info('-%20s: ' + fmt, *db_args)
+            tvals = [t_tstats.get(cname, 0) for cname in tcols]
+            mvals = [t_mstats.get(cname, 0) for cname in mcols]
+            if len(db_names) > 1:
+                log.info('%21s: ' + fmt, 'TOTAL', *(tvals + mvals))
             time.sleep(2)
+
+
+def get_format_cols(dbs):
+    cols = set()
+    for db in dbs:
+        cols.update(task_stat_cols(db))
+    tcols = list(sorted(cols))
+    l_fmt = ['%10s'] * len(tcols)
+    l_fmt.append('|')
+    cols = set()
+    for db in dbs:
+        cols.update(message_stat_cols(db))
+    mcols = list(sorted(cols))
+    l_fmt += ['%10s'] * len(mcols)
+    fmt = ' '.join(l_fmt)
+    return fmt, tcols, mcols
+
+
+def task_stat_cols(db):
+    return db.chapman.task.distinct('status')
+
+
+def message_stat_cols(db):
+    return db.chapman.message.distinct('s.status')
+
+
+def task_stats(db):
+    stats = db.chapman.task.map_reduce(
+        'function(){emit({s:this.status}, 1)}',
+        'function(key, values) {return Array.sum(values);}',
+        {'inline': 1})
+    return dict(
+        (doc['_id']['s'], doc['value'])
+        for doc in stats['results'])
+
+
+def message_stats(db):
+    stats = db.chapman.message.map_reduce(
+        'function(){emit({s:this.s.status}, 1)}',
+        'function(key, values) {return Array.sum(values);}',
+        {'inline': 1})
+    return dict(
+        (doc['_id']['s'], doc['value'])
+        for doc in stats['results'])
 
 if __name__ == '__main__':
     args = docopt(__doc__)
