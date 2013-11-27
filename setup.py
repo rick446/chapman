@@ -32,5 +32,7 @@ setup(name='Chapman',
       ],
       entry_points="""
       # -*- Entry points: -*-
+      [paste.app_factory]
+      chapman = chapman.http:http_main
       """,
       )
