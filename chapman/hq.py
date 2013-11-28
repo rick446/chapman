@@ -7,7 +7,7 @@ from Queue import Queue
 
 import requests
 
-from sutil import util
+from . import util
 
 log = logging.getLogger(__name__)
 

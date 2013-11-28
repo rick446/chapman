@@ -9,7 +9,7 @@ from ming import Field
 from ming.declarative import Document
 from ming import schema as S
 
-from sutil import util
+from chapman import util
 
 from .m_base import doc_session, ChannelProxy
 

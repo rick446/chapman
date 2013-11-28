@@ -2,9 +2,10 @@ import time
 import logging
 from datetime import datetime, timedelta
 
-from pyramid.view import view_config
-import pyramid.httpexceptions as exc
+from pyramid.view import view_config, notfound_view_config
 from paste.deploy.converters import asint
+import pyramid.httpexceptions as exc
+import formencode as fe
 
 from chapman import model as M
 from chapman import validators as V
@@ -77,6 +78,33 @@ def retry_message(request):
          's.after': after})
     M.HTTPMessage.channel.pub('enqueue', int(request.matchdict['message_id']))
     return exc.HTTPNoContent()
+
+
+@view_config(context=exc.HTTPUnauthorized, renderer='json')
+@view_config(context=exc.HTTPForbidden, renderer='json')
+def on_auth_error(exception, request):
+    request.response.status = exception.status
+    return dict(
+        status=exception.status_int,
+        errors=exception.status)
+
+
+@view_config(context=fe.Invalid, renderer='json')
+def on_invalid(exception, request):
+    request.response.status = 400
+    return dict(
+        status=400,
+        errors=exception.unpack_errors())
+
+
+@notfound_view_config(
+    append_slash=True,
+    renderer='json')
+def on_notfound(context, request):
+    request.response.status = context.status
+    return dict(
+        status=context.status_int,
+        errors=context.status)
 
 
 def _wait_then_get(request, client, qname, timeout, sleep):
