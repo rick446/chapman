@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 
 class HTTPMessage(Document):
-    missing_client = '-' * 10
+    missing_client = '-' * 50
     channel = ChannelProxy('chapman.event')
 
     class __mongometa__:
@@ -73,7 +73,7 @@ class HTTPMessage(Document):
         now = datetime.utcnow()
         self = cls.m.find_and_modify(
             {'s.status': 'ready', 's.q': qspec, 's.after': {'$lte': now}},
-            sort=[('s.pri', -1), ('s.ts_queue', 1)],
+            sort=[('s.pri', -1), ('s.ts_enqueue', 1)],
             update={'$set': {
                 's.cli': cli,
                 's.status': 'reserved',
