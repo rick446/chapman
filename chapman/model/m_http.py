@@ -42,7 +42,8 @@ class HTTPMessage(Document):
         cli=S.String(if_missing=missing_client)))
 
     def __json__(self, request):
-        return dict(_id=self._id, data=self.data)
+        k = request.route_url('chapman.1_0.message', message_id=self._id)
+        return {k: self.data}
 
     @property
     def data(self):

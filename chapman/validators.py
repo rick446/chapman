@@ -18,9 +18,13 @@ class DateTime(fev.FancyValidator):
 
 message_schema = fes.Schema(
     priority=fev.Int(if_empty=10, if_missing=10),
-    after=DateTime(if_empty=None, if_missing=None),
+    delay=fev.Int(if_missing=0),
     timeout=fev.Int(if_missing=300))
 
 get_schema = fes.Schema(
     client=fev.UnicodeString(required=True),
+    count=fev.Int(if_missing=1),
     timeout=fev.Int(if_missing=0))
+
+retry_schema = fes.Schema(
+    delay=fev.Int(if_empty=5, if_missing=5))
