@@ -94,6 +94,8 @@ class Listener(object):
                 except Exception:
                     _sem_multi_release(sem, count)
                     raise
+                # sem.release() for each message requested but NOT received
+                _sem_multi_release(sem, count - len(resp_json))
                 for k, v in resp_json.items():
                     log.info('Handle %s', k)
                     try:
