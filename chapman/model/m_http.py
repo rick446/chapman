@@ -42,8 +42,7 @@ class HTTPMessage(Document):
         cli=S.String(if_missing=missing_client)))
 
     def __json__(self, request):
-        k = request.route_url('chapman.1_0.message', message_id=self._id)
-        return {k: self.data}
+        return {self.url(request): self.data}
 
     @property
     def data(self):
@@ -51,6 +50,13 @@ class HTTPMessage(Document):
     @data.setter
     def data(self, value):
         self._data = bson.Binary(json.dumps(value, default=util.default_json))
+
+    def url(self, request):
+        scheme = request.registry.settings.get('chapman.message_url_scheme', None)
+        args = dict(message_id=self._id)
+        if scheme is not None:
+            args['_scheme'] = scheme
+        return request.route_url('chapman.1_0.message', **args)
 
     @classmethod
     def new(cls, data, timeout=300, after=None, q='chapman.http', pri=10):

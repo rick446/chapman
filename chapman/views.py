@@ -27,8 +27,7 @@ def put(request):
         q=request.matchdict['qname'],
         pri=metadata['priority'])
     request.response.status_int = 201
-    return [request.route_url('chapman.1_0.message', message_id=msg._id)]
-
+    return [msg.url(request)]
 
 @view_config(
     route_name='chapman.1_0.queue',
@@ -49,10 +48,7 @@ def get(request):
             data['timeout'],
             asint(request.registry.settings['chapman.sleep_ms']))
     if messages:
-        return dict(
-            (request.route_url('chapman.1_0.message', message_id=msg._id),
-             msg.data)
-            for msg in messages)
+        return dict((msg.url(request), msg.data) for msg in messages)
     else:
         return exc.HTTPNoContent()
 
