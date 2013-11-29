@@ -79,12 +79,17 @@ class Listener(object):
         while True:
             count = _sem_multi_acquire(sem, self.n_thread)
             try:
-                resp = self.hqueue.get(self.name, count=count)
+                try:
+                    resp = self.hqueue.get(self.name, count=count)
+                except Exception:
+                    log.exception('Could not GET from queue, wait 5s')
+                    _sem_multi_release(sem, count)
+                    time.sleep(5)
                 if not resp.ok:
                     log.error(
                         'Error reserving message: %r\n%s',
                         resp, resp.content)
-                    _sem_multi_release(sem, count)
+
                     continue
                 if resp.status_code == 204:  # no content
                     _sem_multi_release(sem, count)
