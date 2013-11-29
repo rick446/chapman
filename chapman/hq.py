@@ -118,11 +118,17 @@ class Listener(object):
             try:
                 self.handle(id, msg)
             except Retry:
-                self.hqueue.retry(id)
+                try:
+                    self.hqueue.retry(id)
+                except Exception:
+                    log.exception('Failed to retry %s', id)
             except Exception:
                 log.exception('Error handling request, waiting 5s')
             else:
-                self.hqueue.retire(id)
+                try:
+                    self.hqueue.retire(id)
+                except Exception:
+                    log.exception('Failed to retire %s', id)
             finally:
                 sem.release()
 
