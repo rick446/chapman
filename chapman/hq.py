@@ -85,11 +85,12 @@ class Listener(object):
                     log.exception('Could not GET from queue, wait 5s')
                     _sem_multi_release(sem, count)
                     time.sleep(5)
+                    continue
                 if not resp.ok:
+                    _sem_multi_release(sem, count)
                     log.error(
                         'Error reserving message: %r\n%s',
                         resp, resp.content)
-
                     continue
                 if resp.status_code == 204:  # no content
                     _sem_multi_release(sem, count)
