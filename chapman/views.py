@@ -27,7 +27,7 @@ def put(request):
         q=request.matchdict['qname'],
         pri=metadata['priority'])
     request.response.status_int = 201
-    return [msg.url(request)]
+    return msg.url(request)
 
 @view_config(
     route_name='chapman.1_0.queue',
