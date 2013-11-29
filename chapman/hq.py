@@ -19,30 +19,30 @@ class HQueue(object):
 
     def __init__(self, queue_url, secret):
         self.queue_url = queue_url
-        self.headers = {'Authorization': 'chapman ' + secret}
+        self.session = requests.Session()
+        self.session.headers.update(
+            {'Authorization': 'chapman ' + secret})
 
     def put(self, msg, timeout=300, delay=0, priority=10):
         params = dict(
             timeout=timeout, delay=delay, priority=priority)
-        resp = requests.post(
+        resp = self.session.post(
             self.queue_url,
             params=params,
-            headers=self.headers,
             data=json.dumps(msg, default=util.default_json))
         return resp
 
     def get(self, client_name, count=1, timeout=30):
-        resp = requests.get(
+        resp = self.session.get(
             self.queue_url,
-            params=dict(client=client_name, count=count, timeout=30),
-            headers=self.headers)
+            params=dict(client=client_name, count=count, timeout=30))
         return resp
 
     def retire(self, message_id):
-        requests.delete(message_id, headers=self.headers)
+        self.session.delete(message_id)
 
     def retry(self, message_id):
-        requests.post(message_id, headers=self.headers)
+        self.session.post(message_id)
 
 
 class Listener(object):
