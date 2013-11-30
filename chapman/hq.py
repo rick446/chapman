@@ -39,10 +39,10 @@ class HQueue(object):
         return resp
 
     def retire(self, message_id):
-        self.session.delete(message_id)
+        return self.session.delete(message_id)
 
     def retry(self, message_id):
-        self.session.post(message_id)
+        return self.session.post(message_id)
 
 
 class Listener(object):
@@ -94,6 +94,7 @@ class Listener(object):
                     continue
                 if resp.status_code == 204:  # no content
                     _sem_multi_release(sem, count)
+                    time.sleep(30)
                     continue
                 try:
                     resp_json = resp.json()
