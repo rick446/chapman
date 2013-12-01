@@ -2,6 +2,8 @@ import time
 import logging
 from datetime import datetime, timedelta
 
+import gevent.queue
+import gevent.event
 from pyramid.view import view_config, notfound_view_config
 from paste.deploy.converters import asint
 import pyramid.httpexceptions as exc
@@ -34,19 +36,13 @@ def put(request):
     request_method='GET')
 def get(request):
     data = V.get_schema.to_python(request.params, request)
-    messages = []
-    for x in range(data['count']):
-        msg = M.HTTPMessage.reserve(data['client'], [request.matchdict['qname']])
-        if msg is None:
-            break
-        messages.append(msg)
-    if not messages and data['timeout'] > 0:
-        return _wait_then_get(
-            request,
-            data['client'],
-            request.matchdict['qname'],
-            data['timeout'],
-            asint(request.registry.settings['chapman.sleep_ms']))
+    sleep_ms = asint(request.registry.settings['chapman.sleep_ms'])
+    messages = MessageGetter.get(
+        request.matchdict['qname'],
+        sleep_ms,
+        data['client'],
+        data['timeout'],
+        data['count'])
     if messages:
         return dict((msg.url(request), msg.data) for msg in messages)
     else:
@@ -103,20 +99,87 @@ def on_notfound(context, request):
         errors=context.status)
 
 
-def _wait_then_get(request, client, qname, timeout, sleep):
-    chan = M.Message.channel.new_channel()
-    wait_until = datetime.utcnow() + timedelta(seconds=timeout)
-    msg = None
+class MessageGetter(object):
+    _registry = {}
 
-    while not msg and datetime.utcnow() < wait_until:
-        cursor = chan.cursor(True)
+    def __init__(self, qname, sleep):
+        self.qname = qname
+        self.sleep = sleep
+        self.q = gevent.queue.PriorityQueue()
+        self._q_mongo = gevent.queue.Queue()
+        self._ev_mongo = gevent.event.Event()
+        gevent.spawn(self._gl_dispatch)
+        gevent.spawn(self._gl_mongo)
+        self.backlog = 0
+
+    @classmethod
+    def get(cls, qname, sleep, client, timeout, count):
+        getter = cls._registry.get(qname, None)
+        if getter is None:
+            getter = cls._registry[qname] = cls(qname, sleep)
+        return getter._get(client, timeout, count)
+
+    def _get(self, client, timeout, count):
+        if not timeout:
+            exp = datetime.min
+        else:
+            exp = datetime.utcnow() + timedelta(seconds=timeout)
+        messages = []
+        event = gevent.event.Event()
+        self.q.put((exp, count, messages, event))
+        event.wait()
+        return messages
+
+    def _gl_dispatch(self):
+        '''Handle message requests in expiration order'''
+        while True:
+            (exp, count, messages, event) = self.q.get()
+            if exp is datetime.min:
+                timeout = 0
+            else:
+                timeout = (exp - datetime.utcnow()).total_seconds()
+            for msg in self._get_mongo(count, timeout=timeout):
+                messages.append(msg)
+            event.set()
+
+    def _gl_mongo(self):
+        '''Whenever _ev_mongo is set try to retrieve a single message.
+        If successful, clear ev_mongo.
+        '''
+        chan = M.Message.channel.new_channel()
+        while True:
+            self._ev_mongo.wait()
+            while self._ev_mongo.is_set():
+                msg = M.HTTPMessage.reserve('hq', [self.qname])
+                if msg is not None:
+                    self._q_mongo.put(msg)
+                    self._ev_mongo.clear()
+                    break
+                # There is an outstanding request. Wait
+                cursor = chan.cursor(True)
+                try:
+                    cursor.next()
+                except StopIteration:
+                    gevent.sleep(self.sleep / 1e3)
+
+    def _get_mongo(self, count, timeout):
+        '''Retrieve up to count messages from mongo, timing out at given time.
+        '''
+        messages = []
+        while count:
+            msg = M.HTTPMessage.reserve('hq', [self.qname])
+            if msg is None:
+                break
+            messages.append(msg)
+            count -= 1
+        if messages or timeout < 0:
+            return messages
+        self._ev_mongo.set()
         try:
-            cursor.next()
-        except StopIteration:
-            time.sleep(sleep / 1e3)
-        msg = M.HTTPMessage.reserve(client, [qname])
+            msg = self._q_mongo.get(timeout=timeout)
+        except gevent.queue.Empty:
+            msg = None
+        self._ev_mongo.clear()
         if msg:
-            return msg.__json__(request)
-
-    return exc.HTTPNoContent()
-
+            messages.append(msg)
+        return messages
