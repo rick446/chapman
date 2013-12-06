@@ -1,4 +1,3 @@
-import time
 import logging
 from datetime import datetime, timedelta
 
@@ -13,6 +12,7 @@ from chapman import model as M
 from chapman import validators as V
 
 log = logging.getLogger(__name__)
+
 
 @view_config(
     route_name='chapman.1_0.queue',
@@ -128,6 +128,10 @@ class MessageGetter(object):
         event = gevent.event.Event()
         self.q.put((exp, count, messages, event))
         event.wait()
+        M.HTTPMessage.m.collection.update(
+            {'_id': {'$in': [m._id for m in messages]}},
+            {'$set': {'s.cli': client}},
+            w=0, multi=True)
         return messages
 
     def _gl_dispatch(self):
