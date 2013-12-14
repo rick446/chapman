@@ -11,6 +11,4 @@ def chapmand(request):
     if 'chapmand.worker' not in env:
         raise exc.HTTPNotFound()
     worker = env['chapmand.worker']
-    worker.start()
-    worker.run()
-
+    worker()

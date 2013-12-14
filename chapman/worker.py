@@ -7,6 +7,8 @@ import logging
 import threading
 from Queue import Queue, Empty
 
+from pyramid.request import Request
+
 import model as M
 from .task import Task, Function
 
@@ -15,7 +17,10 @@ log = logging.getLogger(__name__)
 
 class Worker(object):
 
-    def __init__(self, name, qnames, num_threads=1, sleep=0.2, raise_errors=False):
+    def __init__(
+            self, app, name, qnames,
+            num_threads=1, sleep=0.2, raise_errors=False):
+        self._app = app
         self._name = name
         self._qnames = qnames
         self._num_threads = num_threads
@@ -38,7 +43,7 @@ class Worker(object):
         self._handler_threads += [
             threading.Thread(
                 name='worker-%d' % x,
-                target=self.worker,
+                target=self.wsgi_worker,
                 args=(sem, q))
             for x in range(self._num_threads)]
         for t in self._handler_threads:
@@ -104,6 +109,12 @@ class Worker(object):
             self._num_active_messages += 1
             q.put((msg, state))
         log.info('Exiting dispatcher thread')
+
+    def wsgi_worker(self, sem, q):
+        req = Request.blank('/__chapman__', method='CHAPMAN')
+        req.environ['chapmand.worker'] = lambda: self.worker(sem, q)
+        for x in self._app(req.environ, lambda *a,**kw:None):
+            pass
 
     def worker(self, sem, q):
         log.info('Entering chapmand worker thread')
