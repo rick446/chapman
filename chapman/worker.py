@@ -34,6 +34,7 @@ class Worker(object):
         self._send_event = threading.Event()
         self._shutdown = False  # flag to indicate worker is shutting down
         g.app_context = app_context
+        g.settings = app_context['registry'].settings
 
     def start(self):
         M.doc_session.db.collection_names()  # force connection & auth
