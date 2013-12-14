@@ -16,32 +16,44 @@ import logging
 
 from docopt import docopt
 from pyramid.paster import bootstrap, setup_logging
+from pyramid.request import Request
+from paste.deploy.converters import asint
 
 log = None
 
 
-def main(args, app_context):
+def main(args, app, settings):
     from chapman import worker
     name = args['--name']
     queues = args['--queues'].split(',')
     debug = bool(args['--debug'])
     if name is None:
-        name = 'chapmand-%s-%s' % (
-            socket.getfqdn(), os.getpid())
+        name = 'chapmand-%s' % socket.getfqdn()
     log.info('Starting chapmand %s: listening on %s', name, queues)
     num_threads = int(args['--concurrency'])
-    w = worker.Worker(
-        '%s:%s' % (name, os.getpid()),
-        queues,
-        num_threads=num_threads,
-        raise_errors=debug,
-        app_context=app_context)
-    w.start()
-    w.run()
+    app = chapmand_middleware(
+        app,
+        worker.Worker(
+            name='%s:%s' % (name, os.getpid()),
+            qnames=queues,
+            num_threads=num_threads,
+            sleep=asint(settings['chapman.sleep_ms']) / 1000.0,
+            raise_errors=debug))
+    request = Request.blank('/__chapman__')
+    for chunk in app(request.environ, lambda *a, **kw: None):
+        pass
+
+
+def chapmand_middleware(app, worker):
+    '''Middleware to set up the environ prior to calling the chapmand "view"'''
+    def middleware(environ, start_response):
+        environ['chapmand.worker'] = worker
+        return app(environ, start_response)
+    return middleware
 
 if __name__ == '__main__':
     args = docopt(__doc__)
     setup_logging(args['<config>'])
     app_context = bootstrap(args['<config>'])
     log = logging.getLogger('chapmand')
-    main(args, app_context)
+    main(args, app_context['app'], app_context['registry'].settings)

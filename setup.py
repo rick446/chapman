@@ -33,7 +33,7 @@ setup(name='Chapman',
       entry_points="""
       # -*- Entry points: -*-
       [paste.app_factory]
-      chapman = chapman.http:http_main
+      chapman-hq = chapman.http:http_main
 
       [paste.server_factory]
       gevent_pywsgi_patched = chapman.server:pywsgi_server_factory_patched

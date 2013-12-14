@@ -7,34 +7,24 @@ import logging
 import threading
 from Queue import Queue, Empty
 
-from paste.deploy.converters import asint
-
 import model as M
 from .task import Task, Function
-from .context import g
 
 log = logging.getLogger(__name__)
 
 
 class Worker(object):
 
-    def __init__(self, name, qnames,
-                 num_threads=1,
-                 raise_errors=False,
-                 app_context=None):
+    def __init__(self, name, qnames, num_threads=1, sleep=0.2, raise_errors=False):
         self._name = name
         self._qnames = qnames
         self._num_threads = num_threads
-        settings = app_context['registry'].settings
-        self._sleep = asint(settings.get(
-            'chapman.sleep', '200')) / 1000.0
+        self._sleep = sleep
         Function.raise_errors = raise_errors
         self._handler_threads = []
         self._num_active_messages = 0
         self._send_event = threading.Event()
         self._shutdown = False  # flag to indicate worker is shutting down
-        g.app_context = app_context
-        g.settings = app_context['registry'].settings
 
     def start(self):
         M.doc_session.db.collection_names()  # force connection & auth
