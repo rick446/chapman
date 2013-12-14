@@ -31,25 +31,16 @@ def main(args, app, settings):
         name = 'chapmand-%s' % socket.getfqdn()
     log.info('Starting chapmand %s: listening on %s', name, queues)
     num_threads = int(args['--concurrency'])
-    app = chapmand_middleware(
-        app,
-        worker.Worker(
-            name='%s:%s' % (name, os.getpid()),
-            qnames=queues,
-            num_threads=num_threads,
-            sleep=asint(settings['chapman.sleep_ms']) / 1000.0,
-            raise_errors=debug))
-    request = Request.blank('/__chapman__')
+    request = Request.blank('/__chapman__', method='CHAPMAN')
+    request.environ['chapmand.worker'] = worker.Worker(
+        name='%s:%s' % (name, os.getpid()),
+        qnames=queues,
+        num_threads=num_threads,
+        sleep=asint(settings['chapman.sleep_ms']) / 1000.0,
+        raise_errors=debug)
     for chunk in app(request.environ, lambda *a, **kw: None):
         pass
 
-
-def chapmand_middleware(app, worker):
-    '''Middleware to set up the environ prior to calling the chapmand "view"'''
-    def middleware(environ, start_response):
-        environ['chapmand.worker'] = worker
-        return app(environ, start_response)
-    return middleware
 
 if __name__ == '__main__':
     args = docopt(__doc__)
