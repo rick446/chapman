@@ -43,7 +43,7 @@ class Worker(object):
         self._handler_threads += [
             threading.Thread(
                 name='worker-%d' % x,
-                target=self.wsgi_worker,
+                target=self.worker,
                 args=(sem, q))
             for x in range(self._num_threads)]
         for t in self._handler_threads:
@@ -110,14 +110,9 @@ class Worker(object):
             q.put((msg, state))
         log.info('Exiting dispatcher thread')
 
-    def wsgi_worker(self, sem, q):
-        req = Request.blank('/__chapman__', method='CHAPMAN')
-        req.environ['chapmand.worker'] = lambda: self.worker(sem, q)
-        for x in self._app(req.environ, lambda *a,**kw:None):
-            pass
-
     def worker(self, sem, q):
         log.info('Entering chapmand worker thread')
+        req = Request.blank('/__chapman__', method='CHAPMAN')
         while not self._shutdown:
             try:
                 msg, state = q.get(timeout=0.25)
@@ -126,7 +121,11 @@ class Worker(object):
             try:
                 log.info('Received %r', msg)
                 task = Task.from_state(state)
-                task.handle(msg, 25)
+                # task.handle(msg, 25)
+                req.environ['chapmand.task'] = task
+                req.environ['chapmand.message'] = msg
+                for x in self._app(req.environ, lambda *a,**kw:None):
+                    pass
             except Exception:
                 log.exception('Unexpected error in worker thread')
                 time.sleep(self._sleep)

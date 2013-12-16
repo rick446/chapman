@@ -16,7 +16,6 @@ import logging
 
 from docopt import docopt
 from pyramid.paster import bootstrap, setup_logging
-from pyramid.request import Request
 from paste.deploy.converters import asint
 
 log = None
