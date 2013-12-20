@@ -19,7 +19,6 @@ setup(name='Chapman',
       zip_safe=False,
       scripts=[
           'scripts/chapmand',
-          'scripts/chapmans',
           'scripts/chapmanev',
           'scripts/chapmon',
           'scripts/chapman-init',
