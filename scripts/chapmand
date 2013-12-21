@@ -48,4 +48,4 @@ if __name__ == '__main__':
     setup_logging(args['<config>'])
     app_context = bootstrap(args['<config>'])
     log = logging.getLogger('chapmand')
-    main(args, app_context['app'], app_context['registry'].settings)
+    main(args, app_context['app'], app_context['registry'])
