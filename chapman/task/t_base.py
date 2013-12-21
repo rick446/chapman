@@ -122,7 +122,7 @@ class Task(object):
 
     def handle(self, msg, handle_extra=0):
         while msg:
-            with g.set_context(self, msg):
+            with g.set_context(task=self, message=msg):
                 if self._state.status in ('success', 'failure'):
                     log.warning(
                         'Ignoring message to %s task: %r',

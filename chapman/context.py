@@ -7,20 +7,21 @@ from contextlib import contextmanager
 class Context(object):
     _local = threading.local()
 
-    @property
-    def task(self):
-        return self._local.task
-
-    @property
-    def message(self):
-        return self._local.message
+    def __getattr__(self, name):
+        return getattr(self._local, name)
 
     @contextmanager
-    def set_context(self, task, message):
-        self._local.task = task
-        self._local.message = message
+    def set_context(self, **kwargs):
+        saved = dict(
+            (k, getattr(self._local, k, ()))
+            for k in kwargs)
+        for k, v in kwargs.items():
+            setattr(self._local, k, v)
         yield self
-        self._local.task = None
-        self._local.message = None
+        for k, v in saved.items():
+            if v is ():
+                delattr(self._local, k)
+            else:
+                setattr(self._local, k, v)
 
 g = Context()
