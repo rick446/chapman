@@ -19,10 +19,12 @@ class Worker(object):
 
     def __init__(
             self, app, name, qnames,
+            chapman_path,
             num_threads=1, sleep=0.2, raise_errors=False):
         self._app = app
         self._name = name
         self._qnames = qnames
+        self._chapman_path = chapman_path
         self._num_threads = num_threads
         self._sleep = sleep
         Function.raise_errors = raise_errors
@@ -112,7 +114,7 @@ class Worker(object):
 
     def worker(self, sem, q):
         log.info('Entering chapmand worker thread')
-        req = Request.blank('/__chapman__', method='CHAPMAN')
+        req = Request.blank(self._chapman_path, method='CHAPMAN')
         while not self._shutdown:
             try:
                 msg, state = q.get(timeout=0.25)

@@ -35,6 +35,7 @@ def main(args, app, settings):
         app=app,
         name='%s:%s' % (name, os.getpid()),
         qnames=queues,
+        chapman_path=settings.get('chapman.path', '/__chapman__'),
         num_threads=num_threads,
         sleep=asint(settings['chapman.sleep_ms']) / 1000.0,
         raise_errors=debug)
