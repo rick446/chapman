@@ -21,7 +21,7 @@ from paste.deploy.converters import asint
 log = None
 
 
-def main(args, app, settings):
+def main(args, app, registry):
     from chapman import worker
     name = args['--name']
     queues = args['--queues'].split(',')
@@ -35,9 +35,10 @@ def main(args, app, settings):
         app=app,
         name='%s:%s' % (name, os.getpid()),
         qnames=queues,
-        chapman_path=settings.get('chapman.path', '/__chapman__'),
+        chapman_path=registry.settings.get('chapman.path', '/__chapman__'),
+        registry=registry,
         num_threads=num_threads,
-        sleep=asint(settings['chapman.sleep_ms']) / 1000.0,
+        sleep=asint(registry.settings['chapman.sleep_ms']) / 1000.0,
         raise_errors=debug)
     w.start()
     w.run()

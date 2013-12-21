@@ -12,6 +12,7 @@ view. Here is an example of how to do that:
 '''
 
 from pyramid import httpexceptions as exc
+from chapman.context import g
 
 def handle_task(request):
     env = request.environ
@@ -19,5 +20,6 @@ def handle_task(request):
     msg = env.get('chapmand.message')
     if task is None or msg is None:
         raise exc.HTTPNotFound()
-    task.handle(msg, 25)
+    with g.set_context(request=request, registry=request.registry):
+        task.handle(msg, 25)
     return exc.HTTPOk()
