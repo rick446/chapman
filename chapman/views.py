@@ -40,7 +40,7 @@ def get(request):
     # Ignore gets from the queue, as they skew our response time results
     try:
         import newrelic.agent
-        newrelic.agent.ignore_transaction()
+        newrelic.agent.set_background_task()
     except ImportError:
         pass
     messages = MessageGetter.get(
