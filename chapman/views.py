@@ -37,6 +37,12 @@ def put(request):
 def get(request):
     data = V.get_schema.to_python(request.params, request)
     sleep_ms = asint(request.registry.settings['chapman.sleep_ms'])
+    # Ignore gets from the queue, as they skew our response time results
+    try:
+        import newrelic.agent
+        newrelic.agent.ignore_transaction()
+    except ImportError:
+        pass
     messages = MessageGetter.get(
         request.matchdict['qname'],
         sleep_ms,
