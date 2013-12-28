@@ -18,7 +18,8 @@ def http_main(global_config, **local_settings):
         RequireHeader('Authorization', 'chapman %s' % settings['chapman.secret']),
         NewRequest)
     config.scan('chapman.views')
-    ming.configure(**settings)
+    if not ming.Session._datastores:
+        ming.configure(**settings)
     app = config.make_wsgi_app()
     db = ming.Session.by_name('chapman').db
     app = MongoMiddleware(app, db.connection)
