@@ -157,7 +157,7 @@ class MessageGetter(object):
 
                 # No messages, so we must put the request back onto the queue
                 # and wait for a channel event
-                self.q.put((exp, count, messages, event))
+                self.q.put((exp, count, client, messages, event))
 
                 cursor = chan.cursor(True)
                 try:
