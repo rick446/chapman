@@ -112,10 +112,7 @@ class MessageGetter(object):
         self.qname = qname
         self.sleep = sleep
         self.q = gevent.queue.PriorityQueue()
-        self._q_mongo = gevent.queue.Queue()
-        self._ev_mongo = gevent.event.Event()
-        gevent.spawn(self._gl_dispatch)
-        gevent.spawn(self._gl_mongo)
+        gevent.spawn(self._gl_handler)
         self.backlog = 0
 
     @classmethod
@@ -127,69 +124,48 @@ class MessageGetter(object):
 
     def _get(self, client, timeout, count):
         if not timeout:
-            exp = datetime.min
-        else:
-            exp = datetime.utcnow() + timedelta(seconds=timeout)
+            timeout = 1
+        exp = datetime.utcnow() + timedelta(seconds=timeout)
         messages = []
         event = gevent.event.Event()
-        self.q.put((exp, count, messages, event))
+        self.q.put((exp, count, client, messages, event))
         event.wait()
-        M.HTTPMessage.m.collection.update(
-            {'_id': {'$in': [m._id for m in messages]}},
-            {'$set': {'s.cli': client}},
-            w=0, multi=True)
         return messages
 
-    def _gl_dispatch(self):
-        '''Handle message requests in expiration order'''
-        while True:
-            (exp, count, messages, event) = self.q.get()
-            if exp is datetime.min:
-                timeout = 0
-            else:
-                timeout = (exp - datetime.utcnow()).total_seconds()
-            for msg in self._get_mongo(count, timeout=timeout):
-                messages.append(msg)
-            event.set()
-
-    def _gl_mongo(self):
-        '''Whenever _ev_mongo is set try to retrieve a single message.
-        If successful, clear ev_mongo.
-        '''
+    def _gl_handler(self):
         chan = M.Message.channel.new_channel()
         while True:
-            self._ev_mongo.wait()
-            while self._ev_mongo.is_set():
-                msg = M.HTTPMessage.reserve('hq', [self.qname])
-                if msg is not None:
-                    self._q_mongo.put(msg)
-                    self._ev_mongo.clear()
-                    break
-                # There is an outstanding request. Wait
+            # Get request
+            (exp, count, client, messages, event) = self.q.get()
+            try:
+                # If request is expired, signal it and move on
+                if exp < datetime.utcnow():
+                    event.set()
+                    continue
+
+                # Get all the ready messages, up to the number requested
+                for x in range(count):
+                    msg = M.HTTPMessage.reserve(client, [self.qname])
+                    if msg is None:
+                        break
+                    messages.append(msg)
+
+                # Found messages, notify caller and get next request
+                if messages or exp < datetime.utcnow():
+                    event.set()
+                    continue
+
+                # No messages, so we must put the request back onto the queue
+                # and wait for a channel event
+                self.q.put((exp, count, messages, event))
+
                 cursor = chan.cursor(True)
                 try:
                     cursor.next()
                 except StopIteration:
                     gevent.sleep(self.sleep / 1e3)
 
-    def _get_mongo(self, count, timeout):
-        '''Retrieve up to count messages from mongo, timing out at given time.
-        '''
-        messages = []
-        while count:
-            msg = M.HTTPMessage.reserve('hq', [self.qname])
-            if msg is None:
-                break
-            messages.append(msg)
-            count -= 1
-        if messages or timeout < 0:
-            return messages
-        self._ev_mongo.set()
-        try:
-            msg = self._q_mongo.get(timeout=timeout)
-        except gevent.queue.Empty:
-            msg = None
-        self._ev_mongo.clear()
-        if msg:
-            messages.append(msg)
-        return messages
+            except:
+                log.exception('Error in handler greenlet')
+                event.set()
+
