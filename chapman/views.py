@@ -7,6 +7,7 @@ from pyramid.view import view_config, notfound_view_config
 from paste.deploy.converters import asint
 import pyramid.httpexceptions as exc
 import formencode as fe
+from formencode.variabledecode import variable_decode
 
 from chapman import model as M
 from chapman import validators as V
@@ -19,11 +20,13 @@ log = logging.getLogger(__name__)
     request_method='POST',
     renderer='string')
 def put(request):
-    metadata = V.message_schema.to_python(request.GET, request)
+    params = variable_decode(request.GET)
+    metadata = V.message_schema.to_python(params, request)
     data = request.json
     after = datetime.utcnow() + timedelta(metadata['delay'])
     msg = M.HTTPMessage.new(
         data=data,
+        tags=metadata['tags'],
         timeout=metadata['timeout'],
         after=after,
         q=request.matchdict['qname'],

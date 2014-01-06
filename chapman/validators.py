@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from formencode import validators as fev
 from formencode import schema as fes
-
+from formencode import foreach as fef
 
 class DateTime(fev.FancyValidator):
 
@@ -19,7 +19,8 @@ class DateTime(fev.FancyValidator):
 message_schema = fes.Schema(
     priority=fev.Int(if_empty=10, if_missing=10),
     delay=fev.Int(if_missing=0),
-    timeout=fev.Int(if_missing=300))
+    timeout=fev.Int(if_missing=300),
+    tags=fef.ForEach(fev.UnicodeString, convert_to_list=True, if_missing=[]))
 
 get_schema = fes.Schema(
     client=fev.UnicodeString(required=True),

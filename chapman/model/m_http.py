@@ -26,10 +26,12 @@ class HTTPMessage(Document):
         indexes = [
             [('s.status', 1), ('s.pri', -1), ('s.ts_enqueue', 1), ('s.q', 1)],
             [('s.q', 1), ('s.status', 1), ('s.pri', -1), ('s.ts_enqueue', 1)],
+            [('tags', 1)]
         ]
 
     _id = Field(int, if_missing=lambda: getrandbits(63))
     _data = Field('data', S.Binary(if_missing=bson.Binary('{}')))
+    tags = Field('tags', [str])
     schedule = Field('s', dict(
         status=S.String(if_missing='ready'),
         ts_enqueue=S.DateTime(if_missing=datetime.utcnow),
@@ -59,12 +61,15 @@ class HTTPMessage(Document):
         return request.route_url('chapman.1_0.message', **args)
 
     @classmethod
-    def new(cls, data, timeout=300, after=None, q='chapman.http', pri=10):
+    def new(cls, data, timeout=300, after=None, q='chapman.http', pri=10, tags=None):
+        if tags is None:
+            tags = []
         _data = bson.Binary(json.dumps(data, default=util.default_json))
         if after is None:
             after = datetime.utcnow()
         self = cls.make(dict(
             data=_data,
+            tags=tags,
             s=dict(timeout=timeout, after=after, q=q, pri=pri)))
         self.m.insert()
         self.channel.pub('enqueue', self._id)

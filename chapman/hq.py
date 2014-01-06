@@ -23,9 +23,13 @@ class HQueue(object):
         self.session.headers.update(
             {'Authorization': 'chapman ' + secret})
 
-    def put(self, msg, timeout=300, delay=0, priority=10):
+    def put(self, msg, timeout=300, delay=0, priority=10, tags=None):
+        if tags is None:
+            tags = []
         params = dict(
             timeout=timeout, delay=delay, priority=priority)
+        for i, tag in enumerate(tags):
+            params['tags-%d' % i] = tag
         resp = self.session.post(
             self.queue_url,
             params=params,
