@@ -68,7 +68,7 @@ class Task(object):
         return dict(
             q=self._state.options.queue,
             pri=self._state.options.priority,
-            semaphores=self._state.semaphores)
+            semaphores=self._state.options.semaphores)
 
     def refresh(self):
         self._state = TaskState.m.get(_id=self.id)

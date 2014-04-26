@@ -36,7 +36,7 @@ class Message(Document):
     _send_kwargs = Field('send_kwargs', S.Binary)
     schedule = Field('s', dict(
         status=S.String(if_missing='pending'),
-        sub_status=int,
+        sub_status=S.Int(if_missing=0),
         ts=S.DateTime(if_missing=datetime.utcnow),
         after=S.DateTime(if_missing=datetime.utcnow),
         q=S.String(if_missing='chapman'),
@@ -45,8 +45,9 @@ class Message(Document):
         semaphores=[str]))
 
     def __repr__(self):
-        return '<msg (%s) %s to %s %s on %s>' % (
-            self.schedule.status, self._id, self.slot, self.task_repr,
+        return '<msg (%s:%s) %s to %s %s on %s>' % (
+            self.schedule.status, self.schedule.sub_status,
+            self._id, self.slot, self.task_repr,
             self.schedule.w)
 
     @classmethod
@@ -167,6 +168,8 @@ class Message(Document):
                 continue
             if not res.acquire(self._id):
                 return self, None
+            else:
+                self.m.set({'s.sub_status': i + 1})
         self.m.set({'s.status': 'busy'})
         return self, TaskState.m.get(_id=self.task_id)
 

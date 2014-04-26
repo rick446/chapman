@@ -25,19 +25,13 @@ class TaskState(Document):
         queue=S.String(if_missing='chapman'),
         priority=S.Int(if_missing=10),
         immutable=S.Bool(if_missing=False),
-        ignore_result=S.Bool(if_missing=False)
+        ignore_result=S.Bool(if_missing=False),
+        semaphores = [str],
     ))
     on_complete = Field(int, if_missing=None)
-    semaphores = Field([str])
     mq = Field([int])
 
     result = pickle_property('_result')
-
-    @property
-    def resources(self):
-        for semaphore in self.semaphores:
-            yield SemaphoreResource(semaphore)
-        yield TaskStateResource(self._id)
 
     @classmethod
     def set_result(cls, id, result):
@@ -52,6 +46,11 @@ class TaskStateResource(Resource):
 
     def __init__(self, id):
         self.id = id
+
+    def __repr__(self):
+        obj = TaskState.m.get(_id=self.id)
+        return '<TaskStateResource({}:{}): {}>'.format(
+            obj.type, obj._id, obj.mq)
 
     def acquire(self, msg_id):
         ts = TaskState.m.find_and_modify(
