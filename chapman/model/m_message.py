@@ -7,8 +7,8 @@ from ming import Field
 from ming.declarative import Document
 from ming import schema as S
 
-from .m_base import doc_session, parent_session, dumps, ChannelProxy
-from .m_task import TaskState, ParentTaskState
+from .m_base import doc_session, dumps, ChannelProxy
+from .m_task import TaskState
 
 log = logging.getLogger(__name__)
 
@@ -16,7 +16,6 @@ log = logging.getLogger(__name__)
 class Message(Document):
     missing_worker = '-' * 10
     channel = ChannelProxy('chapman.event')
-    _TaskState = TaskState
 
     class __mongometa__:
         name = 'chapman.message'
@@ -36,6 +35,7 @@ class Message(Document):
     _send_kwargs = Field('send_kwargs', S.Binary)
     schedule = Field('s', dict(
         status=S.String(if_missing='pending'),
+        sub_status=int,
         ts=S.DateTime(if_missing=datetime.utcnow),
         after=S.DateTime(if_missing=datetime.utcnow),
         q=S.String(if_missing='chapman'),
@@ -69,6 +69,56 @@ class Message(Document):
         self.kwargs = kwargs
         self.m.insert()
         return self
+
+    @classmethod
+    def reserve(cls, worker, queues):
+        '''Reserve a message & try to lock the task state.
+
+        - If no message could be reserved, return (None, None)
+        - If a message was reserved, but the resources could not be acquired,
+          return (msg, None)
+        - If a message was reserved, and the resources were acquired, return
+          (msg, task)
+        '''
+        qspec = {'$in': queues}
+        return cls._reserve(worker, qspec)
+
+    @classmethod
+    def _reserve(cls, worker, qspec):
+        '''Reserves a message.'''
+        # Begin acquisition of resources
+        self = cls.m.find_and_modify(
+            {'s.q': qspec, 's.status': 'ready'},
+            sort=[('s.sub_status', -1), ('s.pri', -1), ('s.ts', 1)],
+            update={'$set': {'s.w': worker, 's.status': 'acquire'}},
+            new=True)
+        if self is None:
+            return None, None
+        state = cls._TaskState.m.get(_id=self.task_id)
+
+        # Acquire any resources necessary
+        resources = state.resources
+        for i, res in enumerate(resources):
+            if i < self.sub_status:  # already acquired
+                continue
+            if not res.acquire(self._id):
+                return self, None
+
+        return self, state
+
+    def retire(self):
+        '''Retire the message.'''
+        state = self._TaskState.m.get(_id=self.task_id)
+        resources = state.resources
+        for res in reversed(resources):
+            to_release = res.release(self._id)
+            Message.m.update_partial(
+                {'_id': {'$in': to_release}, 's.status': 'acquire'},
+                {'$set': {'s.status': 'ready'}},
+                multi=True)
+            for msg_id in to_release:
+                self.channel.pub('send', msg_id)
+        self.m.delete()
 
     @classmethod
     def _reserve_next(cls, worker, qspec):
@@ -148,19 +198,6 @@ class Message(Document):
         self.channel.pub('send', self._id)
 
     @classmethod
-    def reserve(cls, worker, queues):
-        '''Reserve a message & try to lock the task state.
-
-        - If no message could be reserved, return (None, None)
-        - If a message was reserved, but the task could not be locked, return
-          (msg, None)
-        - If a message was reserved, and the task was locked, return
-          (msg, task)
-        '''
-        qspec = {'$in': queues}
-        return cls.reserve_qspec(worker, qspec)
-
-    @classmethod
     def reserve_qspec(cls, worker, qspec):
         '''Reserve according to a queue specification to allow for
         more interesting queue topologies
@@ -236,13 +273,3 @@ class Message(Document):
     @kwargs.setter
     def kwargs(self, value):
         self._kwargs = dumps(value)
-
-
-class ParentMessage(Message):
-    missing_worker = '-' * 10
-    channel = ChannelProxy('chapman.event', parent_session)
-    _TaskState = ParentTaskState
-
-    class __mongometa__:
-        name = 'chapman.message'
-        session = parent_session

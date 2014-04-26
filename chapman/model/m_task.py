@@ -3,8 +3,8 @@ from ming import Field
 from ming.declarative import Document
 from ming import schema as S
 
-from .m_base import doc_session, parent_session, dumps, pickle_property
-
+from .m_base import doc_session, dumps, pickle_property, Resource
+from .m_semaphore import SemaphoreResource
 
 class TaskState(Document):
 
@@ -28,9 +28,15 @@ class TaskState(Document):
         ignore_result=S.Bool(if_missing=False)
     ))
     on_complete = Field(int, if_missing=None)
-    mq = Field([int])
+    semaphores = Field([str])
 
     result = pickle_property('_result')
+
+    @property
+    def resources(self):
+        for semaphore in self.semaphores:
+            yield SemaphoreResource(semaphore)
+        yield TaskStateResource(self._id)
 
     @classmethod
     def set_result(cls, id, result):
@@ -41,8 +47,27 @@ class TaskState(Document):
                 'status': result.status}})
 
 
-class ParentTaskState(TaskState):
+class TaskStateResource(Resource):
 
-    class __mongometa__:
-        name = 'chapman.task'
-        session = parent_session
+    def __init__(self, id):
+        self.id = id
+
+    def acquire(self, msg_id):
+        ts = TaskState.m.find_and_modify(
+            {'_id': self.id},
+            {'$push': {'mq': msg_id}},
+            new=True)
+        if msg_id == ts.mq[0]:
+            return True
+        return False
+
+    def release(self, msg_id):
+        from .m_message import Message
+        ts = TaskState.m.find_and_modify(
+            {'_id': self.id, 'mq': msg_id},
+            {'$pull': {'mq': msg_id}},
+            new=True)
+        if ts is None:
+            raise ValueError(
+                '{} is not holding the task {}'.format(msg_id, self.id))
+        return ts.mq[:1]

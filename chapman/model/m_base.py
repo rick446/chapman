@@ -8,7 +8,6 @@ from mongotools.util import LazyProperty
 from mongotools.pubsub import Channel
 
 doc_session = Session.by_name('chapman')
-parent_session = Session.by_name('chapmans_parent')
 log = logging.getLogger(__name__)
 
 
@@ -58,4 +57,21 @@ class ChannelProxy(object):
 
     def new_channel(self):
         return Channel(self._session.db, self._name)
+
+
+class Resource(object):
+
+    def acquire(self, msg_id):
+        '''Try to acquire the resource for msg_id.
+
+        If successful, return True. Otherwise enqueue the message.
+        '''
+        raise NotImplementedError('acquire')
+
+    def release(self, msg_id):
+        '''Release the resource for msg_id.
+        Returns a list of message ids that should be awakened.
+        '''
+        raise NotImplementedError('acquire')
+
 
