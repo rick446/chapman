@@ -29,6 +29,7 @@ class TaskState(Document):
     ))
     on_complete = Field(int, if_missing=None)
     semaphores = Field([str])
+    mq = Field([int])
 
     result = pickle_property('_result')
 
@@ -55,19 +56,17 @@ class TaskStateResource(Resource):
     def acquire(self, msg_id):
         ts = TaskState.m.find_and_modify(
             {'_id': self.id},
-            {'$push': {'mq': msg_id}},
+            update={'$push': {'mq': msg_id}},
             new=True)
         if msg_id == ts.mq[0]:
             return True
         return False
 
     def release(self, msg_id):
-        from .m_message import Message
         ts = TaskState.m.find_and_modify(
             {'_id': self.id, 'mq': msg_id},
-            {'$pull': {'mq': msg_id}},
+            update={'$pull': {'mq': msg_id}},
             new=True)
         if ts is None:
-            raise ValueError(
-                '{} is not holding the task {}'.format(msg_id, self.id))
+            return []
         return ts.mq[:1]

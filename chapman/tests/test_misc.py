@@ -6,10 +6,10 @@ from .test_base import TaskTest
 class TestMisc(TaskTest):
 
     def test_context(self):
-        self.assertIsNone(g.task)
-        self.assertIsNone(g.message)
-        with g.set_context(1,2):
+        assert not hasattr(g, 'task')
+        assert not hasattr(g, 'message')
+        with g.set_context(task=1, message=2):
             self.assertEqual(g.task, 1)
             self.assertEqual(g.message, 2)
-        self.assertIsNone(g.task)
-        self.assertIsNone(g.message)
+        assert not hasattr(g, 'task')
+        assert not hasattr(g, 'message')

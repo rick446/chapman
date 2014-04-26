@@ -67,7 +67,8 @@ class Task(object):
     def schedule_options(self):
         return dict(
             q=self._state.options.queue,
-            pri=self._state.options.priority)
+            pri=self._state.options.priority,
+            semaphores=self._state.semaphores)
 
     def refresh(self):
         self._state = TaskState.m.get(_id=self.id)
@@ -120,7 +121,7 @@ class Task(object):
     def forget(self):
         self._state.m.delete()
 
-    def handle(self, msg, handle_extra=0):
+    def handle(self, msg):
         while msg:
             with g.set_context(task=self, message=msg):
                 if self._state.status in ('success', 'failure'):
@@ -130,12 +131,8 @@ class Task(object):
                 else:
                     method = getattr(self, msg.slot)
                     method(msg)
-                if handle_extra:
-                    msg = msg.retire_and_chain()
-                    handle_extra -= 1
-                else:
-                    msg.retire()
-                    msg = None
+                msg.retire()
+                msg = None
 
 
 class Result(object):

@@ -39,16 +39,10 @@ class TestGroup(TaskTest):
             ignore_result=True)
         t.start(10)
         # Start the group and the subtasks
-        self._handle_messages(limit=3)
-        self.assertEqual(M.Message.m.find().count(), 2)
-        self.assertEqual(M.TaskState.m.find().count(), 3)
-        self.assertEqual(runs, [ 10, 10 ])
-        self._handle_messages(limit=1)
-        self.assertEqual(M.Message.m.find().count(), 1)
-        self.assertEqual(M.TaskState.m.find().count(), 2)
-        self._handle_messages(limit=1)
+        self._handle_messages(limit=5)
         self.assertEqual(M.Message.m.find().count(), 0)
         self.assertEqual(M.TaskState.m.find().count(), 0)
+        self.assertEqual(runs, [ 10, 10 ])
 
     def test_group_order_invert(self):
         t = Group.n()
@@ -94,29 +88,6 @@ class TestGroup(TaskTest):
         self.assertEqual(err.exception.args[0], TypeError)
         self.assertEqual(M.Message.m.find().count(), 0)
         self.assertEqual(M.TaskState.m.find().count(), 1)
-
-    def test_handle_chain(self):
-        t = Group.n(
-            self.doubler.n(),
-            self.doubler.n())
-        t.start(2)
-        m_start_group, s = self._reserve_message()
-        self._handle_message(m_start_group, s)
-        m0, s0 = self._reserve_message()
-        m1, s1 = self._reserve_message()
-        self.assertEqual(m0.slot, 'run')
-        self.assertEqual(m1.slot, 'run')
-        self._handle_message(m0, s0)
-        self._handle_message(m1, s1)
-        m0, s0 = self._reserve_message()
-        m1, s1 = self._reserve_message()
-        self.assertEqual(m0.slot, 'retire_subtask')
-        self.assertEqual(m1.slot, 'retire_subtask')
-        self.assertIsNotNone(s0)
-        self.assertIsNone(s1)
-        self._handle_message(m0, s0, 5)
-        t.refresh()
-        self.assertEqual([4,4], t.result.get())
 
     def test_enqueue_while_busy(self):
         t = Group.n(
