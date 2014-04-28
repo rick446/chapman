@@ -27,13 +27,13 @@ class TestSemaphoreTask(TaskTest):
             if x < 2:
                 self.assertEqual(msg.s.status, 'busy')
             else:
-                self.assertEqual(msg.s.status, 'acquire')
+                self.assertEqual(msg.s.status, 'queued')
                 assert ts is None
         msgs[0].retire()
         msg, ts = M.Message.reserve('foo', ['chapman'])
         self.assertEqual(msg.s.status, 'busy')
         msg, ts = M.Message.reserve('foo', ['chapman'])
-        self.assertEqual(msg.s.status, 'acquire')
+        self.assertEqual(msg.s.status, 'queued')
         print M.Semaphore.m.get()
 
     def test_multi_sem(self):
@@ -49,7 +49,7 @@ class TestSemaphoreTask(TaskTest):
             if x < 2:
                 self.assertEqual(msg.s.status, 'busy')
             else:
-                self.assertEqual(msg.s.status, 'acquire')
+                self.assertEqual(msg.s.status, 'queued')
                 assert ts is None
         print M.Semaphore.m.get(_id='foo')
         print M.Semaphore.m.get(_id='bar')

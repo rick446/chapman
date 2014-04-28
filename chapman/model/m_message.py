@@ -167,13 +167,12 @@ class Message(Document):
             if i < self.s.sub_status:  # already acquired
                 continue
             if not res.acquire(self._id):
+                self.m.set({'s.status': 'queued'})
                 return self, None
             else:
                 res = cls.m.update_partial(
-                    {'_id': self._id, 's.status': 'acquire'},
+                    {'_id': self._id},
                     {'$set': {'s.sub_status': i + 1}})
-                if not res['updatedExisting']:
-                    return self, None # someone prematurely unlocked us
         self.m.set({'s.status': 'busy'})
         return self, TaskState.m.get(_id=self.task_id)
 
@@ -181,11 +180,11 @@ class Message(Document):
         msg_id = None
         for res in reversed(list(self.resources)):
             to_release = res.release(self._id)
-            Message.m.update_partial(
-                {'_id': {'$in': to_release}, 's.status': 'acquire'},
+            res = Message.m.update_partial(
+                {'_id': {'$in': to_release}, 's.status': 'queued'},
                 {'$set': {'s.status': 'ready'}},
                 multi=True)
-            if to_release:
+            if to_release and res['updatedExisting']:
                 msg_id = to_release[0]
         if msg_id is not None:
             self.channel.pub('send', msg_id)
