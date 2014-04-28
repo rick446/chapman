@@ -21,5 +21,5 @@ def handle_task(request):
     if task is None or msg is None:
         raise exc.HTTPNotFound()
     with g.set_context(request=request, registry=request.registry):
-        task.handle(msg, 25)
+        task.handle(msg)
     return exc.HTTPOk()
