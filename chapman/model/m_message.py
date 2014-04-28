@@ -169,18 +169,25 @@ class Message(Document):
             if not res.acquire(self._id):
                 return self, None
             else:
-                self.m.set({'s.sub_status': i + 1})
+                res = cls.m.update_partial(
+                    {'_id': self._id, 's.status': 'acquire'},
+                    {'$set': {'s.sub_status': i + 1}})
+                if not res['updatedExisting']:
+                    return self, None # someone prematurely unlocked us
         self.m.set({'s.status': 'busy'})
         return self, TaskState.m.get(_id=self.task_id)
 
     def _release_resources(self):
+        msg_id = None
         for res in reversed(list(self.resources)):
             to_release = res.release(self._id)
             Message.m.update_partial(
                 {'_id': {'$in': to_release}, 's.status': 'acquire'},
                 {'$set': {'s.status': 'ready'}},
                 multi=True)
-            for msg_id in to_release:
-                self.channel.pub('send', msg_id)
+            if to_release:
+                msg_id = to_release[0]
+        if msg_id is not None:
+            self.channel.pub('send', msg_id)
 
 
