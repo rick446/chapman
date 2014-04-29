@@ -23,7 +23,7 @@ class Message(Document):
         session = doc_session
         indexes = [
             [('s.status', 1), ('s.pri', -1), ('s.ts', 1), ('s.q', 1)],
-            [('s.q', 1), ('s.status', 1), ('s.pri', -1), ('s.ts', 1)],
+            [('s.q', 1), ('s.status', 1), ('s.sub_status', -1), ('s.pri', -1), ('s.ts', 1)],
             [('task_id', 1)],
         ]
     _id = Field(int, if_missing=lambda: getrandbits(63))
@@ -153,9 +153,10 @@ class Message(Document):
     @classmethod
     def _reserve(cls, worker, qspec):
         '''Reserves a message.'''
+        now = datetime.utcnow()
         # Begin acquisition of resources
         self = cls.m.find_and_modify(
-            {'s.q': qspec, 's.status': 'ready'},
+            {'s.q': qspec, 's.status': 'ready', 's.after': {'$lte': now}},
             sort=[('s.sub_status', -1), ('s.pri', -1), ('s.ts', 1)],
             update={'$set': {'s.w': worker, 's.status': 'acquire'}},
             new=True)
