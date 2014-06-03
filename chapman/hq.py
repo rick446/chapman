@@ -39,7 +39,7 @@ class HQueue(object):
     def get(self, client_name, count=1, timeout=30):
         resp = self.session.get(
             self.queue_url,
-            params=dict(client=client_name, count=count, timeout=30))
+            params=dict(client=client_name, count=count, timeout=timeout))
         return resp
 
     def retire(self, message_id):
@@ -51,10 +51,11 @@ class HQueue(object):
 
 class Listener(object):
 
-    def __init__(self, hqueue, client_name, n_thread=1):
+    def __init__(self, hqueue, client_name, n_thread=1, sleep_ms=30000):
         self.hqueue = hqueue
         self.client_name = client_name
         self.n_thread = n_thread
+        self.sleep_ms = sleep_ms
 
     def start(self):
         sem = threading.Semaphore(self.n_thread)
@@ -85,6 +86,7 @@ class Listener(object):
             try:
                 try:
                     resp = self.hqueue.get(self.name, count=count)
+                    log.debug('Got from queue %s', resp)
                 except Exception:
                     log.exception('Could not GET from queue, wait 5s')
                     _sem_multi_release(sem, count)
@@ -98,7 +100,7 @@ class Listener(object):
                     continue
                 if resp.status_code == 204:  # no content
                     _sem_multi_release(sem, count)
-                    time.sleep(30)
+                    time.sleep(self.sleep_ms / 1000.0)
                     continue
                 try:
                     resp_json = resp.json()
