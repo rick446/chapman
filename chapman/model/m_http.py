@@ -38,7 +38,7 @@ class HTTPMessage(Document):
         ts_reserve=S.DateTime(if_missing=None),
         ts_timeout=S.DateTime(if_missing=None),
         timeout=S.Int(if_missing=300),
-        after=S.DateTime(if_missing=datetime.utcnow),
+        after=S.DateTime(if_missing=datetime.fromtimestamp(0)),
         q=S.String(if_missing='chapman.http'),
         pri=S.Int(if_missing=10),
         cli=S.String(if_missing=missing_client)))

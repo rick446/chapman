@@ -38,7 +38,7 @@ class Message(Document):
         status=S.String(if_missing='pending'),
         sub_status=S.Int(if_missing=0),
         ts=S.DateTime(if_missing=datetime.utcnow),
-        after=S.DateTime(if_missing=datetime.utcnow),
+        after=S.DateTime(if_missing=datetime.fromtimestamp(0)),
         q=S.String(if_missing='chapman'),
         pri=S.Int(if_missing=10),
         w=S.String(if_missing=missing_worker),
