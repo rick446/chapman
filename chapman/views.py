@@ -41,11 +41,6 @@ def get(request):
     data = V.get_schema.to_python(request.params, request)
     sleep_ms = asint(request.registry.settings['chapman.sleep_ms'])
     # Ignore gets from the queue, as they skew our response time results
-    try:
-        import newrelic.agent
-        newrelic.agent.set_background_task()
-    except ImportError:
-        pass
     messages = MessageGetter.get(
         request.matchdict['qname'],
         sleep_ms,
@@ -136,7 +131,6 @@ class MessageGetter(object):
         return messages
 
     def _gl_handler(self):
-        chan = M.Message.channel.new_channel()
         while True:
             # Get request
             (exp, count, client, messages, event) = self.q.get()
@@ -162,10 +156,8 @@ class MessageGetter(object):
                 # and wait for a channel event
                 self.q.put((exp, count, client, messages, event))
 
-                cursor = chan.cursor(True)
-                try:
-                    cursor.next()
-                except StopIteration:
+                ev = M.Message.channel.await()
+                if ev is None:
                     gevent.sleep(self.sleep / 1e3)
 
             except:

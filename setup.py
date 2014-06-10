@@ -38,5 +38,7 @@ setup(name='Chapman',
       gevent_pywsgi_patched = chapman.server:pywsgi_server_factory_patched
       gevent_pywsgi = chapman.server:pywsgi_server_factory
 
+      [console_scripts]
+      chapman-hq-ping = chapman.script:hq_ping
       """,
       )
