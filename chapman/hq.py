@@ -85,7 +85,7 @@ class Listener(object):
             count = _sem_multi_acquire(sem, self.n_thread)
             try:
                 try:
-                    resp = self.hqueue.get(self.name, count=count)
+                    resp = self.hqueue.get(self.client_name, count=count)
                     log.debug('Got from queue %s', resp)
                 except Exception:
                     log.exception('Could not GET from queue, wait 5s')
