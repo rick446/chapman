@@ -87,8 +87,7 @@ class Task(object):
     def start(self, *args, **kwargs):
         '''Send a 'run' message & update state'''
         self._state.m.set(dict(status='active'))
-        msg = Message.new(self, 'run', args, kwargs)
-        msg.send()
+        msg = Message.new(self, 'run', args, kwargs, send=True)
         return msg
 
     def schedule(self, after, *args, **kwargs):
