@@ -146,6 +146,9 @@ class MessageGetter(object):
                     if msg is None:
                         break
                     messages.append(msg)
+                    # Only get 1 message if there are other requests waiting
+                    if not self.q.empty():
+                        break
 
                 # Found messages, notify caller and get next request
                 if messages or exp < datetime.utcnow():
