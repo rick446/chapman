@@ -59,28 +59,6 @@ class ChannelProxy(object):
     def new_channel(self):
         return Channel(self._session.db, self._name)
 
-    def await(self):
-        '''Wait for the next message on the channel'''
-        chan = self._channel
-        coll = chan.db[chan.name]
-        try:
-            last_msg = coll.find().sort([('$natural', -1)]).limit(1).next()
-        except StopIteration:
-            # Empty collection, we can't await on it
-            return
-        # Tailable cursors must return at least 1 element to await
-        curs = coll.find(
-            {'ts': {'$gt': last_msg['ts'] - 1}},
-            tailable=True,
-            await_data=True)
-        curs = curs.hint([('$natural', 1)])
-        curs = curs.add_option(_QUERY_OPTIONS['oplog_replay'])
-        curs.next()  # should always find 1 element
-        try:
-            return curs.next()
-        except StopIteration:
-            return None
-
 
 class Resource(object):
 
