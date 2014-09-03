@@ -109,6 +109,13 @@ class Worker(object):
                     self._name, self._qnames, self._waitfunc)
             except StopIteration:
                 break
+            except Exception as err:
+                log.exception(
+                    'Error reserving message: %r, waiting 5s and continuing',
+                    err)
+                sem.release()
+                time.sleep(5)
+                continue
             self._num_active_messages += 1
             q.put((msg, state))
         log.info('Exiting dispatcher thread')
