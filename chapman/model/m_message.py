@@ -200,7 +200,7 @@ class Message(Document):
         for res in reversed(list(self.resources)):
             to_release = res.release(self._id)
             res = Message.m.update_partial(
-                {'_id': {'$in': to_release}, 's.status': 'queued'}
+                {'_id': {'$in': to_release}, 's.status': 'queued'},
                 {'$set': {'s.status': 'ready'}},
                 multi=True)
             if to_release and res['updatedExisting']:
