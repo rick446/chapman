@@ -203,7 +203,7 @@ class Message(Document):
                 {'$set': {'s.status': 'ready'}})
             if not res['updatedExisting']:
                 return
-        self.channel.pub('send', msg_id)
+        cls.channel.pub('send', msg_id)
 
     def _release_resources(self):
         msg_id = None
