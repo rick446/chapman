@@ -49,6 +49,7 @@ class SemaphoreResource(Resource):
         if not sem:
             log.error('Trying to acquire sem %s that is already acquired',
                 self.id)
+            sem = Semaphore.m.get(_id=self.id)
         if msg_id in sem.mq[:sem.value]:
             log.debug('{} has successfully acquired {}'.format(msg_id, self.id))
             return True
