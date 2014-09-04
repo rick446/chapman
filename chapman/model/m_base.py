@@ -95,7 +95,7 @@ class Resource(object):
             wake_msg_id = sem.queued[0]
             updated = self.cls.m.find_and_modify(
                 {'_id': self.id, 'queued': wake_msg_id},
-                {'$pull': {'queued': wake_msg_id}},
+                update={'$pull': {'queued': wake_msg_id}},
                 new=True)
             if updated is None:
                 sem = self.cls.m.get(_id=self.id)
