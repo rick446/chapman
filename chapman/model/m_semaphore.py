@@ -46,6 +46,9 @@ class SemaphoreResource(Resource):
             {'_id': self.id, 'mq': {'$ne': msg_id}},
             update={'$push': {'mq': msg_id}},
             new=True)
+        if not sem:
+            log.error('Trying to acquire sem %s that is already acquired',
+                self.id)
         if msg_id in sem.mq[:sem.value]:
             log.debug('{} has successfully acquired {}'.format(msg_id, self.id))
             return True

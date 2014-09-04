@@ -179,7 +179,7 @@ class Message(Document):
                 cls.m.update_partial(
                     {'_id': self._id, 's.status': 'acquire'},
                     {'$set': {'s.status': 'queued'}})
-                if res.acquired(self._id):
+                if res.is_acquired(self._id):
                     # Could have acquired via another message releasing
                     #  just before we updated to queued
                     cls.m.update_partial(

@@ -61,6 +61,9 @@ class TaskStateResource(Resource):
             {'_id': self.id, 'mq': {'$ne': msg_id}},
             update={'$push': {'mq': msg_id}},
             new=True)
+        if not ts:
+            log.error('Trying to acquire tsr %s that is already acquired',
+                self.id)
         if msg_id == ts.mq[0]:
             return True
         return False
