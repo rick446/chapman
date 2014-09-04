@@ -68,6 +68,7 @@ class TaskStateResource(Resource):
         if not ts:
             log.error('Trying to acquire tsr %s that is already acquired',
                 self.id)
+            return False
         if msg_id == ts.mq[0]:
             return True
         return False
