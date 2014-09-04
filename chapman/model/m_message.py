@@ -179,6 +179,12 @@ class Message(Document):
                 cls.m.update_partial(
                     {'_id': self._id, 's.status': 'acquire'},
                     {'$set': {'s.status': 'queued'}})
+                if res.acquired(self._id):
+                    # Could have acquired via another message releasing
+                    #  just before we updated to queued
+                    cls.m.update_partial(
+                        {'_id': self._id, 's.status': 'queued'},
+                        {'$set': {'s.status': 'ready'}})
                 return self, None
             else:
                 res = cls.m.update_partial(
@@ -194,8 +200,7 @@ class Message(Document):
         for res in reversed(list(self.resources)):
             to_release = res.release(self._id)
             res = Message.m.update_partial(
-                {'_id': {'$in': to_release},
-                 's.status': {'$in': ['acquire', 'queued']}},
+                {'_id': {'$in': to_release}, 's.status': 'queued'}
                 {'$set': {'s.status': 'ready'}},
                 multi=True)
             if to_release and res['updatedExisting']:

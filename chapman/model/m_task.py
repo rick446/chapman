@@ -52,9 +52,13 @@ class TaskStateResource(Resource):
         return '<TaskStateResource({}:{}): {}>'.format(
             obj.type, obj._id, obj.mq)
 
+    def is_acquired(self, msg_id):
+        ts = TaskState.m.find({'_id': self.id, 'mq.0': msg_id}).limit(1).first()
+        return ts is not None
+
     def acquire(self, msg_id):
         ts = TaskState.m.find_and_modify(
-            {'_id': self.id},
+            {'_id': self.id, 'mq': {'$ne': msg_id}},
             update={'$push': {'mq': msg_id}},
             new=True)
         if msg_id == ts.mq[0]:

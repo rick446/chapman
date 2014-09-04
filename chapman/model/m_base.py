@@ -62,6 +62,10 @@ class ChannelProxy(object):
 
 class Resource(object):
 
+    def is_acquired(self, msg_id):
+        '''Check to see if the resource happens to be acquired'''
+        return NotImplementedError('is_acquired')
+
     def acquire(self, msg_id):
         '''Try to acquire the resource for msg_id.
 

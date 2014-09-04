@@ -34,13 +34,18 @@ class SemaphoreResource(Resource):
         return '<SemaphoreResource({}:{}): {}>'.format(
             self.id, obj.value, obj.mq)
 
+    def is_acquired(self, msg_id):
+        sem = Semaphore.m.get(_id=msg_id, mq=msg_id)
+        if msg_id in sem.mq[:sem.value]:
+            return True
+        else:
+            return False
+
     def acquire(self, msg_id):
-        sem = Semaphore.m.get(**{'_id': self.id, 'mq': msg_id})
-        if sem is None:
-            sem = Semaphore.m.find_and_modify(
-                {'_id': self.id},
-                update={'$push': {'mq': msg_id}},
-                new=True)
+        sem = Semaphore.m.find_and_modify(
+            {'_id': self.id, 'mq': {'$ne': msg_id}},
+            update={'$push': {'mq': msg_id}},
+            new=True)
         if msg_id in sem.mq[:sem.value]:
             log.debug('{} has successfully acquired {}'.format(msg_id, self.id))
             return True
