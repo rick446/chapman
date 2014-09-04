@@ -176,9 +176,6 @@ class Message(Document):
             if i < self.s.sub_status:  # already acquired
                 continue
             if not res.acquire(self._id):
-                # Must qualify with current state, as something may
-                #  have set my status to 'ready' when it released a
-                #  resource
                 cls.m.update_partial(
                     {'_id': self._id, 's.status': 'acquire'},
                     {'$set': {'s.status': 'queued'}})
@@ -195,7 +192,7 @@ class Message(Document):
         for res in reversed(list(self.resources)):
             to_release = res.release(self._id)
             res = Message.m.update_partial(
-                {'_id': {'$in': to_release}, 's.status': 'queued'},
+                {'_id': {'$in': to_release}},
                 {'$set': {'s.status': 'ready'}},
                 multi=True)
             if to_release and res['updatedExisting']:
