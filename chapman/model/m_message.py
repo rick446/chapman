@@ -182,8 +182,10 @@ class Message(Document):
                 return self, None
             else:
                 res = cls.m.update_partial(
-                    {'_id': self._id},
+                    {'_id': self._id, 's.status': 'acquire'},
                     {'$set': {'s.sub_status': i + 1}})
+                if not res['updatedExisting']:
+                    return self, None
         self.m.set({'s.status': 'busy'})
         return self, TaskState.m.get(_id=self.task_id)
 
@@ -192,7 +194,8 @@ class Message(Document):
         for res in reversed(list(self.resources)):
             to_release = res.release(self._id)
             res = Message.m.update_partial(
-                {'_id': {'$in': to_release}},
+                {'_id': {'$in': to_release},
+                 's.status': {'$in': ['acquire', 'queued']}},
                 {'$set': {'s.status': 'ready'}},
                 multi=True)
             if to_release and res['updatedExisting']:
