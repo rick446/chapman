@@ -6,7 +6,6 @@ from ming.declarative import Document
 from ming import schema as S
 
 from .m_base import doc_session, dumps, pickle_property, Resource
-from .m_semaphore import SemaphoreResource
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +32,8 @@ class TaskState(Document):
         semaphores = [str],
     ))
     on_complete = Field(int, if_missing=None)
-    mq = Field([int])
+    active = Field([int])     # just one message active
+    queued = Field([int])   # any number queued
 
     result = pickle_property('_result')
 
@@ -47,37 +47,18 @@ class TaskState(Document):
 
 
 class TaskStateResource(Resource):
+    cls=TaskState
 
     def __init__(self, id):
         self.id = id
 
     def __repr__(self):
         obj = TaskState.m.get(_id=self.id)
-        return '<TaskStateResource({}:{}): {}>'.format(
-            obj.type, obj._id, obj.mq)
-
-    def is_acquired(self, msg_id):
-        ts = TaskState.m.find({'_id': self.id, 'mq.0': msg_id}).limit(1).first()
-        return ts is not None
+        return '<TaskStateResource({}:{}): {} / {}>'.format(
+            obj.type, obj._id, obj.active, obj.queued)
 
     def acquire(self, msg_id):
-        ts = TaskState.m.find_and_modify(
-            {'_id': self.id, 'mq': {'$ne': msg_id}},
-            update={'$push': {'mq': msg_id}},
-            new=True)
-        if not ts:
-            log.error('Trying to acquire tsr %s that is already acquired',
-                self.id)
-            return True
-        if msg_id == ts.mq[0]:
-            return True
-        return False
+        return super(TaskStateResource, self).acquire(msg_id, 1)
 
     def release(self, msg_id):
-        ts = TaskState.m.find_and_modify(
-            {'_id': self.id, 'mq': msg_id},
-            update={'$pull': {'mq': msg_id}},
-            new=True)
-        if ts is None:
-            return []
-        return ts.mq[:1]
+        return super(TaskStateResource, self).release(msg_id, 1)

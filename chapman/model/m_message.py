@@ -36,6 +36,7 @@ class Message(Document):
     _send_kwargs = Field('send_kwargs', S.Binary)
     schedule = Field('s', dict(
         status=S.String(if_missing='pending'),
+        event=bool,
         sub_status=S.Int(if_missing=0),
         ts=S.DateTime(if_missing=datetime.utcnow),
         after=S.DateTime(if_missing=datetime.fromtimestamp(0)),
@@ -175,37 +176,41 @@ class Message(Document):
         for i, res in enumerate(self.resources):
             if i < self.s.sub_status:  # already acquired
                 continue
-            if not res.acquire(self._id):
-                cls.m.update_partial(
-                    {'_id': self._id, 's.status': 'acquire'},
+            while True:
+                self.m.set({'s.event': False})
+                if res.acquire(self._id):
+                    self.m.set({'s.sub_status': i})
+                    break
+                res = cls.update_partial(
+                    {'_id': self._id, 's.event': False},
                     {'$set': {'s.status': 'queued'}})
-                if res.is_acquired(self._id):
-                    # Could have acquired via another message releasing
-                    #  just before we updated to queued
-                    cls.m.update_partial(
-                        {'_id': self._id, 's.status': 'queued'},
-                        {'$set': {'s.status': 'ready'}})
-                return self, None
-            else:
-                res = cls.m.update_partial(
-                    {'_id': self._id, 's.status': 'acquire'},
-                    {'$set': {'s.sub_status': i + 1}})
-                if not res['updatedExisting']:
+                if res['updatedExisting']:
                     return self, None
+                # Otherwise, try again to acquire the resource
+
         self.m.set({'s.status': 'busy'})
         return self, TaskState.m.get(_id=self.task_id)
+
+    @classmethod
+    def wake(cls, msg_id):
+        '''Wake a message that may be enqueued somewhere else'''
+        res = cls.m.update_partial(
+            {'_id': msg_id, 's.status': 'acquire'},
+            {'$set': {'s.event': True}})
+        if not res['updatedExisting']:
+            res = cls.m.update_partial(
+                {'_id': msg_id, 's.status': 'queued'},
+                {'$set': {'s.status': 'ready'}})
+            if not res['updatedExisting']:
+                return
+        self.channel.pub('send', msg_id)
 
     def _release_resources(self):
         msg_id = None
         for res in reversed(list(self.resources)):
-            to_release = res.release(self._id)
-            res = Message.m.update_partial(
-                {'_id': {'$in': to_release}, 's.status': 'queued'},
-                {'$set': {'s.status': 'ready'}},
-                multi=True)
-            if to_release and res['updatedExisting']:
-                msg_id = to_release[0]
-        if msg_id is not None:
-            self.channel.pub('send', msg_id)
+            if res is None:
+                continue
+            for msg_id in res.release(self._id):
+                self.wake(msg_id)
 
 
