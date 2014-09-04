@@ -61,22 +61,46 @@ class ChannelProxy(object):
 
 
 class Resource(object):
+    '''Wrapper for a model "cls" that has a queued and active field'''
+    cls = None
 
-    def is_acquired(self, msg_id):
-        '''Check to see if the resource happens to be acquired'''
-        return NotImplementedError('is_acquired')
-
-    def acquire(self, msg_id):
+    def acquire(self, msg_id, value):
         '''Try to acquire the resource for msg_id.
 
         If successful, return True. Otherwise enqueue the message.
         '''
-        raise NotImplementedError('acquire')
+        sem = self.cls.m.find_and_modify(
+            {'_id': self.id},
+            update={'$push': {
+                'active': {'$each': [msg_id], '$slice': value},
+                'queued': msg_id}},
+            new=True)
+        if msg_id in sem.active:
+            self.cls.m.update_partial(
+                {'_id': self.id},
+                {'$pull': {'queued': msg_id}})
+            return True
+        else:
+            return False
 
-    def release(self, msg_id):
+    def release(self, msg_id, size):
         '''Release the resource for msg_id.
-        Returns a list of message ids that should be awakened.
+        Yields a sequence of message ids that should be awakened.
         '''
-        raise NotImplementedError('acquire')
+        sem = self.cls.m.find_and_modify(
+            {'_id': self.id},
+            update={'$pull': {'active': msg_id}},
+            new=True)
+        while sem and len(sem.active) < size and sem.queued:
+            wake_msg_id = sem.queued[0]
+            updated = self.cls.m.find_and_modify(
+                {'_id': self.id, 'queued': wake_msg_id},
+                update={'$pull': {'queued': wake_msg_id}},
+                new=True)
+            if updated is None:
+                sem = self.cls.m.get(_id=self.id)
+            else:
+                yield wake_msg_id
+                sem = updated
 
 
