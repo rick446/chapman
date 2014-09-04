@@ -176,7 +176,12 @@ class Message(Document):
             if i < self.s.sub_status:  # already acquired
                 continue
             if not res.acquire(self._id):
-                self.m.set({'s.status': 'queued'})
+                # Must qualify with current state, as something may
+                #  have set my status to 'ready' when it released a
+                #  resource
+                cls.m.update_partial(
+                    {'_id': self._id, 's.status': 'acquire'},
+                    {'$set': {'s.status': 'queued'}})
                 return self, None
             else:
                 res = cls.m.update_partial(
