@@ -36,7 +36,7 @@ class SemaphoreResource(Resource):
 
     def is_acquired(self, msg_id):
         sem = Semaphore.m.get(_id=msg_id, mq=msg_id)
-        if msg_id in sem.mq[:sem.value]:
+        if sem and msg_id in sem.mq[:sem.value]:
             return True
         else:
             return False

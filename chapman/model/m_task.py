@@ -1,10 +1,14 @@
+import logging
 from random import getrandbits
+
 from ming import Field
 from ming.declarative import Document
 from ming import schema as S
 
 from .m_base import doc_session, dumps, pickle_property, Resource
 from .m_semaphore import SemaphoreResource
+
+log = logging.getLogger(__name__)
 
 class TaskState(Document):
 
