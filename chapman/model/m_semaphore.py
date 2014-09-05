@@ -44,8 +44,8 @@ class SemaphoreResource(Resource):
 
     def __repr__(self):
         obj = self.cls.m.get(_id=self.id)
-        return '<SemaphoreResource({}:{}): {}>'.format(
-            self.id, obj.value, obj.mq)
+        return '<SemaphoreResource({}:{}): {} {}>'.format(
+            self.id, obj.value, obj.active, obj.queued)
 
     def acquire(self, msg_id):
         value = Semaphore.m.get(_id=self.id).value

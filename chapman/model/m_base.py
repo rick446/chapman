@@ -72,7 +72,7 @@ class Resource(object):
         sem = self.cls.m.find_and_modify(
             {'_id': self.id},
             update={'$push': {
-                'active': {'$each': [msg_id], '$slice': -value},
+                'active': {'$each': [msg_id], '$slice': value},
                 'queued': msg_id}},
             new=True)
         if msg_id in sem.active:
