@@ -179,17 +179,26 @@ class Message(Document):
             while True:
                 self.m.set({'s.event': False})
                 if res.acquire(self._id):
-                    self.m.set({'s.sub_status': i})
-                    break
+                    res = cls.m.update_partial(
+                        {'_id': self._id, 'status': 'acquire'},
+                        {'$set': {'s.sub_status': i}})
+                    if res['updatedExisting']:
+                        break
+                    else:
+                        return self, None
                 res = cls.m.update_partial(
                     {'_id': self._id, 's.event': False},
                     {'$set': {'s.status': 'queued'}})
                 if res['updatedExisting']:
                     return self, None
                 # Otherwise, try again to acquire the resource
-
-        self.m.set({'s.status': 'busy'})
-        return self, TaskState.m.get(_id=self.task_id)
+        res = cls.m.update_partial(
+            {'_id': self._id, 'status': 'acquire'},
+            {'s.status': 'busy'})
+        if res['updatedExisting']:
+            return self, TaskState.m.get(_id=self.task_id)
+        else:
+            return self, None
 
     @classmethod
     def wake(cls, msg_id):
