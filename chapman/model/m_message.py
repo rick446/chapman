@@ -181,7 +181,7 @@ class Message(Document):
                 if res.acquire(self._id):
                     self.m.set({'s.sub_status': i})
                     break
-                res = cls.update_partial(
+                res = cls.m.update_partial(
                     {'_id': self._id, 's.event': False},
                     {'$set': {'s.status': 'queued'}})
                 if res['updatedExisting']:
