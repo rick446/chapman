@@ -194,7 +194,7 @@ class Message(Document):
                 # Otherwise, try again to acquire the resource
         res = cls.m.update_partial(
             {'_id': self._id, 's.status': 'acquire'},
-            {'s.status': 'busy'})
+            {'$set': {'s.status': 'busy'}})
         if res['updatedExisting']:
             return self, TaskState.m.get(_id=self.task_id)
         else:
