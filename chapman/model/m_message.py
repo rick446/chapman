@@ -180,7 +180,7 @@ class Message(Document):
                 self.m.set({'s.event': False})
                 if res.acquire(self._id):
                     res = cls.m.update_partial(
-                        {'_id': self._id, 'status': 'acquire'},
+                        {'_id': self._id, 's.status': 'acquire'},
                         {'$set': {'s.sub_status': i}})
                     if res['updatedExisting']:
                         break
@@ -193,7 +193,7 @@ class Message(Document):
                     return self, None
                 # Otherwise, try again to acquire the resource
         res = cls.m.update_partial(
-            {'_id': self._id, 'status': 'acquire'},
+            {'_id': self._id, 's.status': 'acquire'},
             {'s.status': 'busy'})
         if res['updatedExisting']:
             return self, TaskState.m.get(_id=self.task_id)
