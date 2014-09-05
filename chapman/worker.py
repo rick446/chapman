@@ -13,6 +13,7 @@ import model as M
 from .task import Task, Function
 
 log = logging.getLogger(__name__)
+exc_log = logging.getLogger('exc_logger')
 
 
 class Worker(object):
@@ -110,7 +111,7 @@ class Worker(object):
             except StopIteration:
                 break
             except Exception as err:
-                log.exception(
+                exc_log.exception(
                     'Error reserving message: %r, waiting 5s and continuing',
                     err)
                 sem.release()
@@ -137,8 +138,8 @@ class Worker(object):
                 req.environ['chapmand.message'] = msg
                 for x in self._app(req.environ, lambda *a,**kw:None):
                     pass
-            except Exception:
-                log.exception('Unexpected error in worker thread')
+            except Exception as err:
+                exc_log.exception('Unexpected error in worker thread: %r', err)
                 time.sleep(self._sleep)
             finally:
                 self._num_active_messages -= 1
