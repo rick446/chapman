@@ -173,12 +173,12 @@ class Message(Document):
             return None, None
 
         # Acquire any resources necessary
-        for i, res in enumerate(self.resources):
+        for i, resource in enumerate(self.resources):
             if i < self.s.sub_status:  # already acquired
                 continue
             while True:
                 self.m.set({'s.event': False})
-                if res.acquire(self._id):
+                if resource.acquire(self._id):
                     res = cls.m.update_partial(
                         {'_id': self._id, 's.status': 'acquire'},
                         {'$set': {'s.sub_status': i}})
