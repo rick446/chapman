@@ -64,7 +64,7 @@ class Function(Task):
                 self.complete(result)
             except Exception as err:
                 log.error('Exception completing task: %s', err)
-                result.data.args[1] = repr(exc_info(1))
+                result.data.args[1] = repr(exc_info[1])
                 self.complete(result)
 
     def _merge_args(self, msg):
