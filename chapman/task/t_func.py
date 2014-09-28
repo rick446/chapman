@@ -1,9 +1,13 @@
 import sys
+import logging
 
 from chapman import exc
 from chapman import model as M
 
 from .t_base import Task, Result
+
+log = logging.getLogger(__name__)
+
 
 class Function(Task):
     target=None
@@ -53,9 +57,15 @@ class Function(Task):
         except Exception:
             if self.raise_errors or self._state is None:
                 raise
-            result = Result.failure(
-                self._state._id, 'Error in %r' % self, *sys.exc_info())
-            self.complete(result)
+            status = 'Error in %r' % self
+            exc_info = sys.exc_info()
+            result = Result.failure(self._state._id, status, *exc_info)
+            try:
+                self.complete(result)
+            except Exception as err:
+                log.error('Exception completing task: %s', err)
+                result.data.args[1] = repr(exc_info(1))
+                self.complete(result)
 
     def _merge_args(self, msg):
         '''Compute the *args and **kwargs based on the args and kwargs stored in
