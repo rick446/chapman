@@ -46,6 +46,6 @@ def main(args, app, registry):
 if __name__ == '__main__':
     args = docopt(__doc__)
     setup_logging(args['<config>'])
-    app_context = bootstrap(args['<config>'])
+    app_context = bootstrap(args['<config>'], options={'chapman.enabled': 'True'})
     log = logging.getLogger('chapmand')
     main(args, app_context['app'], app_context['registry'])
