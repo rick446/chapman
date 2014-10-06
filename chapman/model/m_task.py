@@ -29,6 +29,7 @@ class TaskState(Document):
         priority=S.Int(if_missing=10),
         immutable=S.Bool(if_missing=False),
         ignore_result=S.Bool(if_missing=False),
+        path=S.String(if_missing=None),
         semaphores = [str],
     ))
     on_complete = Field(int, if_missing=None)
@@ -44,6 +45,13 @@ class TaskState(Document):
             {'$set': {
                 'result': dumps(result),
                 'status': result.status}})
+
+    def __repr__(self):
+        parts = [self.type, self._id]
+        if self.options['path']:
+            parts.append(self.options['path'])
+        return '<{}>'.format(
+            ' '.join(map(str, parts)))
 
 
 class TaskStateResource(Resource):

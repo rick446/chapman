@@ -10,6 +10,13 @@ class Context(object):
     def __getattr__(self, name):
         return getattr(self._local, name)
 
+    @property
+    def path(self):
+        return getattr(self._local, 'path', None)
+    @path.setter
+    def path(self, value):
+        self._local.path = value
+
     @contextmanager
     def set_context(self, **kwargs):
         saved = dict(

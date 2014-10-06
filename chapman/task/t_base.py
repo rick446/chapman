@@ -17,9 +17,10 @@ class Task(object):
         self._state = state
 
     def __repr__(self):
-        return '<%s %s>' % (
+        return '<%s %s %s>' % (
             self.__class__.__name__,
-            self._state._id)
+            self._state._id,
+            self._state.options.path)
 
     def run(self, msg, raise_errors=False):
         '''Do the work of the task'''
@@ -34,11 +35,16 @@ class Task(object):
         return self._state.status
 
     @property
+    def path(self):
+        return self._state.options.path
+
+    @property
     def result(self):
         return self._state.result
 
     @classmethod
     def new(cls, data, status='pending', **options):
+        options.setdefault('path', getattr(g, 'path', None))
         state = TaskState.make(dict(
             type=cls.name,
             status=status,

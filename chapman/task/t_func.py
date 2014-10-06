@@ -3,6 +3,7 @@ import logging
 
 from chapman import exc
 from chapman import model as M
+from chapman.context import g
 
 from .t_base import Task, Result
 
@@ -37,14 +38,11 @@ class Function(Task):
 
     @classmethod
     def spawn(cls, *args, **kwargs):
-        self = cls.new(args, kwargs)
+        options = kwargs.pop('__options__', {})
+        options.setdefault('path', kwargs.pop('__path__', g.path))
+        self = cls.new(args, kwargs, **options)
         self.start()
         return self
-
-    def __repr__(self):
-        return '<%s %s>' % (
-            self.__class__.__name__,
-            self._state._id)
 
     def run(self, msg):
         try:
@@ -94,6 +92,11 @@ class Function(Task):
             return FunctionTaskWrapper(n, func, options)
         return decorator
 
+    @classmethod
+    def bind_path(cls, path):
+        cls.path = path
+
+
 class FunctionTaskWrapper(object):
 
     def __init__(self, name, target, options):
@@ -115,3 +118,4 @@ class FunctionTaskWrapper(object):
 
     def __call__(self, *args, **kwargs):
         return self._cls.target(*args, **kwargs)
+

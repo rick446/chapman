@@ -132,7 +132,10 @@ class Worker(object):
                 log.info('Received %r', msg)
                 task = Task.from_state(state)
                 # task.handle(msg, 25)
-                req = Request.blank(self._chapman_path, method='CHAPMAN')
+                if task.path:
+                    req = Request.blank(task.path, method='CHAPMAN')
+                else:
+                    req = Request.blank(self._chapman_path, method='CHAPMAN')
                 req.registry = self._registry
                 req.environ['chapmand.task'] = task
                 req.environ['chapmand.message'] = msg

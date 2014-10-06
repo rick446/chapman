@@ -8,4 +8,3 @@ class RegistryMetaclass(type):
 
     def by_name(cls, name):
         return cls._registry[name]
-
