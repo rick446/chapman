@@ -89,7 +89,7 @@ class Resource(object):
         '''
         sem = self.cls.m.find_and_modify(
             {'_id': self.id},
-            update={'$pull': {'active': msg_id}},
+            update={'$pull': {'active': msg_id, 'queued': msg_id}},
             new=True)
         while sem and len(sem.active) < size and sem.queued:
             wake_msg_id = sem.queued[0]
