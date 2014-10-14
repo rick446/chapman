@@ -14,7 +14,7 @@ class Pipeline(Composite):
     def retire_subtask(self, msg):
         result, position = msg.args
         if result.status == 'failure':
-            self.m.set({'status': 'failure'})
+            self._state.m.set({'status': 'failure'})
             return
         next_state = M.TaskState.m.find(
             { 'parent_id': self.id,
