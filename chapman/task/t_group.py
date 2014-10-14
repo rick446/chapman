@@ -50,7 +50,7 @@ class Group(Composite):
             if st.status in ('pending', 'active', 'failure'):
                 return  # group isn't really done
             if st.status == 'failure':
-                self._state.m.set({'status': 'failure'})
+                self._state.m.set({'status': 'fail-child'})
                 return
             results.append(st.result)
         gr = GroupResult(self.id, results)
