@@ -16,5 +16,8 @@ class Barrier(Group):
         for st in self.subtask_iter():
             if st.status in ('pending', 'active'):
                 return  # group isn't really done
+            if st.status == 'failure':
+                self.m.set({'status': 'failure'})
+                return
         self.remove_subtasks()
         self.complete(Result.success(self._state._id, None))

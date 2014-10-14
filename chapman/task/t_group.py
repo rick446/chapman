@@ -47,8 +47,11 @@ class Group(Composite):
     def retire(self):
         results = []
         for st in self.subtask_iter():
-            if st.status in ('pending', 'active'):
+            if st.status in ('pending', 'active', 'failure'):
                 return  # group isn't really done
+            if st.status == 'failure':
+                self.m.set({'status': 'failure'})
+                return
             results.append(st.result)
         gr = GroupResult(self.id, results)
         self.remove_subtasks()
