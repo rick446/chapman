@@ -24,7 +24,7 @@ def main(args):
     workers = get_live_workers(chan)
     workers.append(M.Message.missing_worker)
     q = M.Message.m.find(
-        {'s.status': {'$in': ['busy', 'q1', 'q2']},
+        {'s.status': {'$in': ['busy', 'acquire']},
          's.w': {'$nin': workers}})
     for msg in q:
         log.info('Unlock message %s', msg)
