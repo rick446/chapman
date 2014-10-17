@@ -91,8 +91,6 @@ class Resource(object):
             {'_id': self.id},
             update={'$pull': {'active': msg_id, 'queued': msg_id}},
             new=True)
-        if size > 1:
-            import ipdb; ipdb.set_trace();
         while sem and len(sem.active) < size and sem.queued:
             wake_msg_ids = sem.queued[:size]
             updated = self.cls.m.find_and_modify(
