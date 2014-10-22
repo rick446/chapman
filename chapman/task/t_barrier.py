@@ -14,10 +14,10 @@ class Barrier(Group):
 
     def retire(self):
         for st in self.subtask_iter():
-            if st.status in ('pending', 'active'):
-                return  # group isn't really done
             if st.status == 'failure':
                 self._state.m.set({'status': 'fail-child'})
-                return
+                return  # group isn't really done
+            elif st.status != 'success':
+                return  # group isn't really done
         self.remove_subtasks()
         self.complete(Result.success(self._state._id, None))
