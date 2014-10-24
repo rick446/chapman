@@ -52,6 +52,7 @@ class Group(Composite):
                 return  # group isn't really done
             elif st.status != 'success':
                 return  # group isn't really done
+            results.append(st.result)
         gr = GroupResult(self.id, results)
         self.remove_subtasks()
         self.complete(gr)
