@@ -1,11 +1,9 @@
 import time
-import logging
+import os.path
+import logging.config
 
 from docopt import docopt
-from pyramid.paster import bootstrap, setup_logging
-
-logging.basicConfig(level=logging.WARN)
-
+from pyramid.paster import bootstrap
 
 CHUNKSIZE = 4096
 
@@ -24,7 +22,7 @@ def chapmand():
     config = args['<config>']
     if '#' not in config:
         config += '#chapman'
-    setup_logging(config)
+    _setup_logging(config)
     app_context = bootstrap(config)
     app_context['app'].run(
         registry=app_context['registry'],
@@ -67,5 +65,16 @@ def hq_ping():
         listener.ping()
         time.sleep(1)
 
+
+def _setup_logging(config_file):
+    '''Setup logging like pyramid.paster.setup_logging but does
+    NOT disable existing loggers
+    '''
+    path, _ = config_file.split('#')
+    full_path = os.path.abspath(path)
+    here = os.path.dirname(full_path)
+    return logging.config.fileConfig(
+        full_path, dict(__file__=full_path, here=here),
+        disable_existing_loggers=False)
 
 
