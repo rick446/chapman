@@ -18,7 +18,7 @@ setup(name='Chapman',
       include_package_data=True,
       zip_safe=False,
       scripts=[
-          'scripts/chapmand',
+          #'scripts/chapmand',
           'scripts/chapmanev',
           'scripts/chapmon',
           'scripts/chapman-init',
@@ -40,5 +40,6 @@ setup(name='Chapman',
 
       [console_scripts]
       chapman-hq-ping = chapman.script:hq_ping
+      chapmand = chapman.script:chapmand
       """,
       )
