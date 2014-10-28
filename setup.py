@@ -40,6 +40,6 @@ setup(name='Chapman',
 
       [console_scripts]
       chapman-hq-ping = chapman.script:hq_ping
-      chapmand = chapman.script:chapmand
+      chapmand = chapman.script:Chapman.script
       """,
       )
