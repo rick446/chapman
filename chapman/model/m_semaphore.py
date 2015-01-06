@@ -20,11 +20,11 @@ class Semaphore(Document):
     queued = Field([int])
 
     @classmethod
-    def ensure(cls, sem_id, value):
+    def ensure(cls, sem_id, value=5):
         return cls.m.find_and_modify(
             {'_id': sem_id},
             update={'$setOnInsert': {
-                'value': 5,
+                'value': value,
                 'active': [],
                 'queued': []}},
             upsert=True,
