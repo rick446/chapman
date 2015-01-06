@@ -57,7 +57,18 @@ class TestSemaphoreTask(TaskTest):
         msg, ts = M.Message.reserve('foo', ['chapman'])
         print M.Semaphore.m.get(_id='foo')
         print M.Semaphore.m.get(_id='bar')
+        
+    def test_ensure_default(self):
+        sem = M.Semaphore.ensure('baz')
+        self.assertEqual(sem.value, 5)
 
+    def test_ensure_new_with_value(self):
+        sem = M.Sempahore.ensure('baz', 10)
+        self.assertEqual(sem.value, 10)
+
+    def test_ensure_existing_with_value(self):
+        sem = M.Semaphore.ensure('foo', 5)
+        self.assertEqual(sem.value, 5)
 
     def test_sem_doesnt_muck_things_up(self):
         runs = []
