@@ -25,6 +25,7 @@ class Chapman(object):
       -h --help                 show this help message and exit
       -c,--concurrency THREADS  number of threads to run [default: 1]
       -d,--debug                drop into a debugger on task errors?
+      -n,--name NAME            override the name of the worker
     """
     settings_schema = fes.Schema(
         pre_validators=[fevd.NestedVariables()],
@@ -54,6 +55,8 @@ class Chapman(object):
         app_section = settings.pop('app')
         app_context = bootstrap('{}#{}'.format(config, app_section))
         settings = cls.settings_schema.to_python(settings)
+        if args['--name']:
+            settings['name'] = args['--name']
         self = cls(**settings)
         self.run(
             app_context['app'],
