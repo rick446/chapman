@@ -1,5 +1,6 @@
+import os
 import time
-import os.path
+import base64
 import logging.config
 from ConfigParser import ConfigParser
 
@@ -35,7 +36,7 @@ class Chapman(object):
         sleep_ms=fev.Int())
 
     def __init__(self, name, path, queues, sleep_ms):
-        self.name = name
+        self.name = '{}-{}'.format(name, base64.urlsafe_b64encode(os.urandom(6)))
         self.path = path
         self.queues = queues
         self.sleep_ms = sleep_ms
