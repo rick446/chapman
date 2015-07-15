@@ -57,11 +57,17 @@ class Function(Task):
                 raise
             status = 'Error in %r' % self
             exc_info = sys.exc_info()
+            log.error(
+                'Task failure id:%s type:%s ex_type:%r ex_val:%r',
+                self._state._id,
+                self._state.type,
+                exc_info[0],
+                exc_info[1])
             result = Result.failure(self._state._id, status, *exc_info)
             try:
                 self.complete(result)
             except Exception as err:
-                log.error('Exception completing task: %s', err)
+                log.error('Exception completing task id:%s: %r', self._state._id, err)
                 result.data.args = (
                     result.data.args[0],
                     repr(result.data.args[1]),
