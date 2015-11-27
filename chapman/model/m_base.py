@@ -90,7 +90,7 @@ class Resource(object):
         sem = self.cls.m.find_and_modify(
             {'_id': self.id},
             update={
-                '$pull': {'active': msg_id, 'queued': msg_id},
+                '$pull': {'active': msg_id},
                 '$pop': {'queued': -1}
                 },
             new=False)
