@@ -221,5 +221,3 @@ class Message(Document):
                 continue
             for msg_id in res.release(self._id):
                 self.wake(msg_id)
-
-

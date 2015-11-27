@@ -89,19 +89,11 @@ class Resource(object):
         '''
         sem = self.cls.m.find_and_modify(
             {'_id': self.id},
-            update={'$pull': {'active': msg_id, 'queued': msg_id}},
-            new=True)
-        while sem and len(sem.active) < size and sem.queued:
-            wake_msg_ids = sem.queued[:size]
-            updated = self.cls.m.find_and_modify(
-                {'_id': self.id},
-                update={'$pullAll': {'queued': wake_msg_ids}},
-                new=True)
-            if updated is None:
-                sem = self.cls.m.get(_id=self.id)
-                continue
-            for msgid in wake_msg_ids:
-                yield msgid
-            sem = updated
-
-
+            update={
+                '$pull': {'active': msg_id, 'queued': msg_id},
+                '$pop': {'queued': -1}
+                },
+            new=False)
+        if sem.queued:
+            wake_msg_id = sem.queued[0]
+            yield wake_msg_id
