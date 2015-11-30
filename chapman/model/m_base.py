@@ -97,6 +97,6 @@ class Resource(object):
                 '$pop': {'queued': -1}
                 },
             new=False)
-        if sem.queued:
+        if sem and sem.queued:
             wake_msg_id = sem.queued[0]
             yield wake_msg_id
