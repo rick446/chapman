@@ -88,7 +88,7 @@ class Resource(object):
         Yields a sequence of message ids that should be awakened.
         '''
         self.cls.m.update_partial(
-            {'_id': self._id},
+            {'_id': self.id},
             {'$pull': {'queued': msg_id}})
         sem = self.cls.m.find_and_modify(
             {'_id': self.id},
